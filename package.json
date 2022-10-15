@@ -1,0 +1,23 @@
+{
+  "name": "gpt-3_reasoning",
+  "version": "1.0.0",
+  "description": "",
+  "main": "app.js",
+  "scripts": {
+    "start": "source app_env && node app.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mingyeahh/GPT-3_reasoning.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/mingyeahh/GPT-3_reasoning/issues"
+  },
+  "homepage": "https://github.com/mingyeahh/GPT-3_reasoning#readme",
+  "dependencies": {
+    "openai": "^3.0.0"
+  }
+}
