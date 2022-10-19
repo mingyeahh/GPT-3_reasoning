@@ -3,6 +3,14 @@ const express = require("express");
 const fs = require("fs");
 let history = require("./history.json");
 
+const historyToPrompt = (hist) => {
+    let buffer = "";
+    hist.forEach((h) => {
+        buffer = buffer.concat(`${h.sender}: ${h.msg}\n`);
+    });
+    return buffer;
+}
+
 const port = 8000;
 
 const app = express();
@@ -47,6 +55,7 @@ app.post("/send", (req, res) => {
 
 Human: Hello, who are you?
 AI: I am an AI created by OpenAI. How can I help you today?
+${historyToPrompt(history)}
 Human: ${msg}
 AI:`,
         temperature: 0.9,
