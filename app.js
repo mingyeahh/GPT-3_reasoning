@@ -81,7 +81,11 @@ AI:`,
 
 app.post('*', (req, res) => {
     console.log(req);
-})
+});
+
+app.get('/history', (req, res) =>{
+    res.send(history);
+});
 
 app.listen(port, () => {
   console.log(`Listening on port ${port}`);
