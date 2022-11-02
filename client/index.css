@@ -8,3 +8,7 @@
     height: 40vh;
     overflow: scroll;
 }
+
+.title{
+    color: blue;
+}
