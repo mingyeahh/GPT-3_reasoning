@@ -54,7 +54,7 @@ window.addEventListener("load", (e) => {
         }
     }).then(data => {
         console.log(data);
-        document.getElementById('conv-model1').innerHTML = '';
+        // document.getElementById('conv-model1').innerHTML = '';
         data.forEach((i) =>{
             let newLine = `<span class="title">${i.sender}:</span> ${i.msg}
                         <br>`;
