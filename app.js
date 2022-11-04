@@ -5,9 +5,9 @@ let history = require("./history.json");
 
 const historyToPrompt = (hist) => {
     let buffer = "";
-    hist.forEach((h) => {
-        buffer = buffer.concat(`${h.sender}: ${h.msg}\n`);
-    });
+    // hist.forEach((h) => {
+    //     buffer = buffer.concat(`${h.sender}: ${h.msg}\n`);
+    // });
     return buffer;
 }
 
@@ -17,24 +17,24 @@ const app = express();
 app.use(express.json()); // parse JSON requests
 app.use(express.static("client"));
 
-console.log(history); // DEBUG
+// console.log(history); // DEBUG
 
 const configuration = new Configuration({
     apiKey: process.env.OPENAI_API_KEY,
 });
 const openai = new OpenAIApi(configuration);
-// openai.createCompletion({
-//     model: "text-davinci-002",
-//     prompt: "Can you predict whether the Chinese government will loosen the covid policy?",
-//     temperature: 0,
-//     max_tokens: 100,
-// }).then(res => {
-//     console.log(res.data.choices[0].text);
-//     history.push(res.data);
-//     fs.writeFileSync("history.json", JSON.stringify(history));
-// }).catch(err => {
-//     console.log(err);
-// });
+
+
+// List of topics that have been discussed 
+let list_discussed = ['Transformer', 'LSTM', 'Large language models']
+
+const discussed_item = (list_discussed) =>{
+    let temp = [...list_discussed];
+    let last = temp.pop(); 
+    let str = temp.join(', ');
+    return `${str}, and ${last}`;
+}
+
 
 app.post("/send", (req, res) => {
     let msg = req.body.msg;
@@ -51,10 +51,7 @@ app.post("/send", (req, res) => {
     openai.createCompletion({
         model: "text-davinci-002",
         prompt:
-`The following is a conversation with an AI assistant. The assistant is helpful, creative, clever, and very friendly.
-
-Human: Hello, who are you?
-AI: I am an AI created by OpenAI. How can I help you today?
+`We'll be learning about NLP, we've already discussed: ${(discussed_item(list_discussed))}. Now we will discuss more things related to NLP. You should be leading the conversation by asking humans what they know first, and teaching the human something they never know.
 ${historyToPrompt(history)}
 Human: ${msg}
 AI:`,
