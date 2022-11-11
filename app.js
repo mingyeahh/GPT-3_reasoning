@@ -5,8 +5,17 @@ const app = express();
 app.use(express.json()); // parse JSON requests
 app.use(express.static("client"));
 
-// let history = require("./history.json"); // list of past conversation
+// Apply GPT-3 to do summerisation
+const configuration2 = new Configuration({
+    apiKey: process.env.OPENAI_API_KEY,
+});
+const openai2 = new OpenAIApi(configuration2);
 
+
+// index represent the index of the starting conversation that needs to be summerised
+// buffer is the size of conversation that I define
+// batchSize is the size of one batch of conversation that we define for summerisation
+// histPath is the path to log all the past conversation in a json file
 class History{
     constructor(index, buffer, batchSize, histPath){
         this.index = index;
@@ -14,9 +23,11 @@ class History{
         this.batchSize = batchSize;
         this.histPath = histPath;
         this.listory = require(this.histPath);
+        this.counter = 0;
         this.currentSummary = "";
     }
-
+    
+// Set the starting and ending index of the conversation batch we need to use
     historyToText(start=0, end=-1) {
         if (end < 0) {end = this.listory.length}
         let buffer = "";
@@ -34,8 +45,26 @@ class History{
             time: time,
         });
         fs.writeFileSync(this.histPath, JSON.stringify(this.listory));
-        if (this.listory.length >= this.index + this.batchSize + this.buffer){
-            // do summary thing
+        if (this.listory.length >= (this.index + this.batchSize + this.buffer)){
+            openai2.createCompletion({
+                model: "text-davinci-002",
+                prompt:
+                // ffs I spent ages to debug and it turns out the prompt has to be in this format :/
+`Summarize the following dialogue in details: \n ${this.historyToText(this.index, (this.index + this.batchSize))}`,
+                temperature: 0.7,
+                max_tokens: 256,
+                top_p: 1,
+                frequency_penalty: 0,
+                presence_penalty: 0,
+            }).then(gpt => {
+                this.currentSummary = gpt.data.choices[0].text;
+
+                console.log('summary for the text' + this.currentSummary);
+                console.log('current index is: ' + this.index);
+            });
+            this.counter += 1;
+            // Update the starting index of the history which haven't summerised
+            this.index = this.counter * this.batchSize;
         }
     }
     conversationPrompt(){
@@ -72,6 +101,7 @@ app.post("/send", (req, res) => {
         conversation.push("AI", gpt.data.choices[0].text, gpt.data.created);
         res.send({
             text: gpt.data.choices[0].text,
+            promp: conversation.conversationPrompt()
         });
     }).catch(err => {
         console.log(err);
@@ -79,7 +109,7 @@ app.post("/send", (req, res) => {
         res.send(err);
     });
 });
-
+console.log('I said,' +this.currentSummary)
 app.post('*', (req, res) => {
     console.log(req);
 });
@@ -89,41 +119,14 @@ app.get('/history', (req, res) =>{
     res.send(conversation.listory);
 });
 
-// List of summerisation 
-let list_discussed = ['Transformer']
+// // List of summerisation 
+// let list_discussed = ['Transformer']
 
-// const configuration2 = new Configuration({
-//     apiKey: process.env.OPENAI_API_KEY,
-// });
-// const openai2 = new OpenAIApi(configuration2);
+// const discussed_item = (list_discussed) =>{
+//     let temp = [...list_discussed];
+//     let last = temp.pop(); 
+//     let str = temp.join(', ');
+//     return `${str}, and ${last}`;
 
-//     openai2.createCompletion({
-//         model: "text-davinci-002",
-//         prompt:
-// `Summerise ${(discussed_item(list_discussed))} in details.`,
-//         temperature: 0.7,
-//         max_tokens: 256,
-//         top_p: 1,
-//         frequency_penalty: 0,
-//         presence_penalty: 0,
-//     })
-
-// const response = await openai2.createCompletion({
-//   model: "text-davinci-002",
-//   prompt: "Summarize ",
-//   temperature: 0.7,
-//   max_tokens: 256,
-//   top_p: 1,
-//   frequency_penalty: 0,
-//   presence_penalty: 0,
-// });
-
-
-const discussed_item = (list_discussed) =>{
-    let temp = [...list_discussed];
-    let last = temp.pop(); 
-    let str = temp.join(', ');
-    return `${str}, and ${last}`;
-}
 
 module.exports = app;
