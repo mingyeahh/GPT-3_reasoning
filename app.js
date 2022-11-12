@@ -25,6 +25,10 @@ class History{
         this.listory = require(this.histPath);
         this.counter = 0;
         this.currentSummary = "";
+        this.isSummarising = false;
+        if (this.listory.length >= (this.index + this.batchSize + this.buffer)){
+            this.summariseHistory();
+        }
     }
     
 // Set the starting and ending index of the conversation batch we need to use
@@ -46,34 +50,79 @@ class History{
         });
         fs.writeFileSync(this.histPath, JSON.stringify(this.listory));
         if (this.listory.length >= (this.index + this.batchSize + this.buffer)){
-            openai2.createCompletion({
-                model: "text-davinci-002",
-                prompt:
-                // ffs I spent ages to debug and it turns out the prompt has to be in this format :/
-`Summarize the following dialogue in details: \n ${this.historyToText(this.index, (this.index + this.batchSize))}`,
-                temperature: 0.7,
-                max_tokens: 256,
-                top_p: 1,
-                frequency_penalty: 0,
-                presence_penalty: 0,
-            }).then(gpt => {
-                this.currentSummary = gpt.data.choices[0].text;
+            this.summariseHistory();
+        }
+    }
+    
+    summariseHistory(){
+        this.isSummarising = true;
+        openai2.createCompletion({
+            model: "text-davinci-002",
+            prompt:
+            // ffs I spent ages to debug and it turns out the prompt has to be in this format :/
+    `Old Summary 1:
+    The topics discussed were maths homework and geography homework.
 
-                console.log('summary for the text' + this.currentSummary);
-                console.log('current index is: ' + this.index);
-            });
+    Dialogue 1: 
+    Human: Can you teach me Chinese?
+    AI: I'm sorry, but I don't know how to speak Chinese.
+    Human: Maybe you can teach me German then?
+    AI: I'm sorry, but I also don't know how to speak German.
+
+    Summary 1:
+    The topics discussed were homework, learning Chinese and learning German.
+    
+    Old Summary 2:
+    The topics discussed were zombies, garlic, transformers, and vampires.
+
+    Dialogue 2:
+    Human: Have you ever read Dracula?
+    AI: Yes, I have actually read Dracula. It's a classic novel by Bram Stoker.
+    Human: Do you read a lot of books?
+    AI: Yes, I love reading books!
+
+    Summary 2:
+    The topics discussed were zombies, garlic, transformers, vampires, Dracula, and reading books.
+
+    Old Summary 3:
+    The topics discussed were ${this.currentSummary}
+
+    Dialogue 3:
+    ${this.historyToText(this.index, (this.index + this.batchSize))}
+
+    Summary 3:
+    The topics discussed were`,
+            temperature: 0.7,
+            max_tokens: 256,
+            top_p: 1,
+            frequency_penalty: 0,
+            presence_penalty: 0,
+        }).then(gpt => {
+            this.currentSummary = gpt.data.choices[0].text;
+    
             this.counter += 1;
             // Update the starting index of the history which haven't summerised
             this.index = this.counter * this.batchSize;
-        }
+    
+            console.log('summary for the text' + this.currentSummary);
+            console.log('current index is: ' + this.index);
+
+            if (this.listory.length >= (this.index + this.batchSize + this.buffer)){
+                // automatically summarise recursively
+                this.summariseHistory();
+            } else {
+                this.isSummarising = false;
+            }
+        });
     }
+
     conversationPrompt(){
         let builtInText = "We'll be learning about NLP, we've already discussed:";
         let restHist = this.historyToText(this.index);
         return `${builtInText} ${this.currentSummary}\n\n${restHist}AI:`;
     }
 }
-let conversation = new History(0, 20, 20, "./history.json");
+let conversation = new History(0, 10, 10, "./history.json");
 
 
 // Apply GTP-3 to answer questions based on input conversation
