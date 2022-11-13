@@ -5,18 +5,57 @@ const app = express();
 app.use(express.json()); // parse JSON requests
 app.use(express.static("client"));
 
+/*
+TODO:
+- Delete all json file things DONE 
+- Reconstruct a proper bench mark dialouge which should have the property of: Different topics, each topics should be in different length, 
+- 
+*/ 
+
+ 
 // Apply GPT-3 to do summerisation
 const configuration2 = new Configuration({
     apiKey: process.env.OPENAI_API_KEY,
 });
 const openai2 = new OpenAIApi(configuration2);
 
+class Model1{
+    constructor(histPath){
+        this.histPath = histPath;
+        this.listory = require(this.histPath);
+    }
+
+    push(sender, msg, time) {
+        this.listory.push({
+            sender: sender,
+            msg: msg,
+            time: time,
+        });
+        fs.writeFileSync(this.histPath, JSON.stringify(this.listory));
+    }
+
+    historyToText() {
+        let buffer = "";
+        for (let i = 0; i<this.listory.length; i++){
+            let h = this.listory[i];
+            buffer = buffer.concat(`${h.sender}: ${h.msg}\n`);
+        }
+        return buffer;
+    }
+
+    conversationPrompt(){
+        let builtInText = "We'll be learning about NLP, we've already discussed:";
+        let restHist = this.historyToText();
+        return `${builtInText}\n\n${restHist}AI:`;
+    }
+}
 
 // index represent the index of the starting conversation that needs to be summerised
 // buffer is the size of conversation that I define
 // batchSize is the size of one batch of conversation that we define for summerisation
 // histPath is the path to log all the past conversation in a json file
-class History{
+// listory is a verb i made means the list of history lmao :D
+class Model2{
     constructor(index, buffer, batchSize, histPath){
         this.index = index;
         this.buffer = buffer;
@@ -122,8 +161,15 @@ class History{
         return `${builtInText} ${this.currentSummary}\n\n${restHist}AI:`;
     }
 }
-let conversation = new History(0, 10, 10, "./history.json");
 
+let conversation2 = new Model2(0, 10, 10, "./history2.json");
+
+let conversation1 = new Model1("./history1.json");
+
+let conversation = {
+    1: conversation1,
+    2: conversation2,
+};
 
 // Apply GTP-3 to answer questions based on input conversation
 const configuration = new Configuration({
@@ -139,18 +185,18 @@ app.post("/send", (req, res) => {
         res.end();
         return;
     }
-    conversation.push("human", msg, Math.floor(Date.now() / 1000));
+    conversation[req.query.model].push("human", msg, Math.floor(Date.now() / 1000));
     openai.createCompletion({
         model: "text-davinci-002",
-        prompt:conversation.conversationPrompt(),
+        prompt:conversation[req.query.model].conversationPrompt(),
         temperature: 0.9,
         max_tokens: 150,
         stop: ["Human:", "AI:"],
     }).then(gpt => {
-        conversation.push("AI", gpt.data.choices[0].text, gpt.data.created);
+        conversation[req.query.model].push("AI", gpt.data.choices[0].text, gpt.data.created);
         res.send({
             text: gpt.data.choices[0].text,
-            promp: conversation.conversationPrompt()
+            promp: conversation[req.query.model].conversationPrompt()
         });
     }).catch(err => {
         console.log(err);
@@ -158,14 +204,18 @@ app.post("/send", (req, res) => {
         res.send(err);
     });
 });
-console.log('I said,' +this.currentSummary)
+
 app.post('*', (req, res) => {
     console.log(req);
 });
 
 // Send past conversation to log in front-end from server side
 app.get('/history', (req, res) =>{
-    res.send(conversation.listory);
+    if(Object.keys(conversation).includes(req.query.model)){
+        res.send(conversation[req.query.model].listory);
+    } else {
+        res.status(404).end();
+    }
 });
 
 // // List of summerisation 
