@@ -20,9 +20,18 @@ const configuration2 = new Configuration({
 const openai2 = new OpenAIApi(configuration2);
 
 class Model1{
-    constructor(histPath){
+    constructor(histPath, batchSize=10, buffer=10){
         this.histPath = histPath;
         this.listory = require(this.histPath);
+        this.counter = 0;
+        this.index = 0;
+        this.batchSize = batchSize;
+        this.buffer = buffer;
+        this.summaries = [];
+        if (this.listory.length >= (this.index + this.batchSize + this.buffer)){
+            // automatically summarise recursively
+            this.summariseHistory();
+        }
     }
 
     push(sender, msg, time) {
@@ -31,30 +40,88 @@ class Model1{
             msg: msg,
             time: time,
         });
+        if (this.listory.length >= (this.index + this.batchSize + this.buffer)){
+            // automatically summarise recursively
+            this.summariseHistory();
+        }
         fs.writeFileSync(this.histPath, JSON.stringify(this.listory));
     }
 
-    historyToText() {
+    historyToText(start=0, end=-1) {
+        if (end < 0) {end = this.listory.length}
         let buffer = "";
-        for (let i = 0; i<this.listory.length; i++){
+        for (let i = start; i<end; i++){
             let h = this.listory[i];
             buffer = buffer.concat(`${h.sender}: ${h.msg}\n`);
         }
         return buffer;
     }
 
+    summariseHistory(){
+        this.isSummarising = true;
+        openai2.createCompletion({
+            model: "text-davinci-002",
+            prompt:
+            // ffs I spent ages to debug and it turns out the prompt has to be in this format :/
+    `Dialogue 1: 
+    Human: Can you teach me Chinese?
+    AI: I'm sorry, but I don't know how to speak Chinese.
+    Human: Maybe you can teach me German then?
+    AI: I'm sorry, but I also don't know how to speak German.
+
+    Summary 1:
+    The topics discussed were learning Chinese and learning German.
+    
+    Dialogue 2:
+    Human: Have you ever read Dracula?
+    AI: Yes, I have actually read Dracula. It's a classic novel by Bram Stoker.
+    Human: Do you read a lot of books?
+    AI: Yes, I love reading books!
+
+    Summary 2:
+    The topics discussed were Dracula and reading books.
+
+    Dialogue 3:
+    ${this.historyToText(this.index, (this.index + this.batchSize))}
+
+    Summary 3:
+    The topics discussed were`,
+            temperature: 0.7,
+            max_tokens: 256,
+            top_p: 1,
+            frequency_penalty: 0,
+            presence_penalty: 0,
+        }).then(gpt => {
+            this.summaries.push(gpt.data.choices[0].text);
+    
+            this.counter += 1;
+            // Update the starting index of the history which haven't summerised
+            this.index = this.counter * this.batchSize;
+    
+            console.log('summary for the text' + this.summaries[this.summaries.length-1]);
+            console.log('current index is: ' + this.index);
+
+            if (this.listory.length >= (this.index + this.batchSize + this.buffer)){
+                // automatically summarise recursively
+                this.summariseHistory();
+            } else {
+                this.isSummarising = false;
+            }
+        });
+    }
+
     conversationPrompt(){
         let builtInText = "We'll be learning about NLP, we've already discussed:";
-        let restHist = this.historyToText();
-        return `${builtInText}\n\n${restHist}AI:`;
+        let restHist = this.historyToText(this.index);
+        return `${builtInText}\n${this.summaries.join(' ')}\n${restHist}AI:`;
     }
 }
 
-// index represent the index of the starting conversation that needs to be summerised
-// buffer is the size of conversation that I define
-// batchSize is the size of one batch of conversation that we define for summerisation
-// histPath is the path to log all the past conversation in a json file
-// listory is a verb i made means the list of history lmao :D
+// index => the index of the starting conversation that needs to be summerised
+// buffer => the size of conversation that I define
+// batchSize => the size of one batch of conversation that we define for summerisation
+// histPath => the path to log all the past conversation in a json file
+// listory => a verb i made means the list of history lmao :D
 class Model2{
     constructor(index, buffer, batchSize, histPath){
         this.index = index;
