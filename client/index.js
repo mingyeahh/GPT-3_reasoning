@@ -42,7 +42,9 @@ const formHandler = (e) => {
         let newLine = `<span class="title">Human:</span> ${hinp}
                     <br><span class="title">AI:</span> ${data.text}
                     <br>`;
-        document.getElementById(`conv-model${modelNumber}`).innerHTML += newLine;
+        let elem = document.getElementById(`conv-model${modelNumber}`)
+        elem.innerHTML += newLine;
+        elem.scrollTop = elem.scrollHeight;
     }).catch(console.error);
 };
 
@@ -71,7 +73,9 @@ window.addEventListener("load", (e) => {
             data.forEach((i) =>{
                 let newLine = `<span class="title">${i.sender}:</span> ${i.msg}
                             <br>`;
-                document.getElementById(`conv-model${m}`).innerHTML += newLine;
+                let elem = document.getElementById(`conv-model${m}`)
+                elem.innerHTML += newLine;
+                elem.scrollTop = elem.scrollHeight;
             });
         }).catch(console.error);
     })

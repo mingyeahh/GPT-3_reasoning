@@ -113,7 +113,9 @@ class Model1{
     conversationPrompt(){
         let builtInText = "We'll be learning about NLP, we've already discussed:";
         let restHist = this.historyToText(this.index);
+        console.log(this.summaries);
         return `${builtInText}\n${this.summaries.join(' ')}\n${restHist}AI:`;
+        
     }
 }
 

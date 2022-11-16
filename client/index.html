@@ -35,7 +35,7 @@
             <div class="tab-pane fade show active" id="pills-model1" role="tabpanel" aria-labelledby="pills-model1-tab"
                 tabindex="0">
                 <div id="content">
-                    <p>This model applies OpenAI GPT-3 API to get response from the language model by user input. It takes all the past conversation in the prompt. It's implemented the same as the Chat function in the OpenAI playground. The main problem of this model is that the AI might lose some memory of the past conversation.</p>
+                    <p>This model applies OpenAI GPT-3 API to get response from the language model by user input. It takes all the past conversation in the prompt. Compared to the version in OpenAI playground, this model divide the past conversations into different batches and use GPT-3 summarisation function to summarise each batch, and pass all the batch summaries to the prompt of the AI. </p>
                     <p id="conv-model1" class=" conversation border border-4 rounded p-4">
                         The following is a conversation with an AI assistant. The assistant is helpful, creative, clever, and very friendly.
                         <br>
