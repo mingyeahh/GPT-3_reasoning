@@ -7,17 +7,23 @@ app.use(express.static("client"));
 
 /*
 TODO:
-- Delete all json file things DONE 
 - Reconstruct a proper bench mark dialouge which should have the property of: Different topics, each topics should be in different length, 
 - 
 */ 
 
- 
 // Apply GPT-3 to do summerisation
 const configuration2 = new Configuration({
     apiKey: process.env.OPENAI_API_KEY,
 });
 const openai2 = new OpenAIApi(configuration2);
+
+
+// index => the index of the starting conversation that needs to be summerised
+// buffer => the size of conversation that I define
+// batchSize => the size of one batch of conversation that we define for summerisation
+// histPath => the path to log all the past conversation in a json file
+// listory => a verb i made means the list of history lmao :D
+// Concatenating summaries for different batches into the prompt
 
 class Model1{
     constructor(histPath, batchSize=10, buffer=10){
@@ -119,11 +125,83 @@ class Model1{
     }
 }
 
-// index => the index of the starting conversation that needs to be summerised
-// buffer => the size of conversation that I define
-// batchSize => the size of one batch of conversation that we define for summerisation
-// histPath => the path to log all the past conversation in a json file
-// listory => a verb i made means the list of history lmao :D
+// class Model1{
+//     constructor(histPath, batchSize=10, buffer=10){
+//         this.histPath = histPath;
+//         this.listory = require(this.histPath);
+//         this.counter = 0;
+//         this.index = 0;
+//         this.batchSize = batchSize;
+//         this.buffer = buffer;
+//         this.summaries = [];
+//         if (this.listory.length >= (this.index + this.batchSize + this.buffer)){
+//             // automatically summarise recursively
+//             this.summariseHistory();
+//         }
+//     }
+
+//     push(sender, msg, time) {
+//         this.listory.push({
+//             sender: sender,
+//             msg: msg,
+//             time: time,
+//         });
+//         if (this.listory.length >= (this.index + this.batchSize + this.buffer)){
+//             // automatically summarise recursively
+//             this.summariseHistory();
+//         }
+//         fs.writeFileSync(this.histPath, JSON.stringify(this.listory));
+//     }
+
+//     historyToText(start=0, end=-1) {
+//         if (end < 0) {end = this.listory.length}
+//         let buffer = "";
+//         for (let i = start; i<end; i++){
+//             let h = this.listory[i];
+//             buffer = buffer.concat(`${h.sender}: ${h.msg}\n`);
+//         }
+//         return buffer;
+//     }
+
+//     summariseHistory(){
+//         this.isSummarising = true;
+//         openai2.createCompletion({
+//             model: "text-davinci-002",
+//             prompt:`${this.historyToText(this.index, (this.index + this.batchSize))}\n\nTl;dr`,
+//             temperature: 0.7,
+//             max_tokens: 256,
+//             top_p: 1,
+//             frequency_penalty: 0,
+//             presence_penalty: 0,
+//         }).then(gpt => {
+//             this.summaries.push(gpt.data.choices[0].text);
+    
+//             this.counter += 1;
+//             // Update the starting index of the history which haven't summerised
+//             this.index = this.counter * this.batchSize;
+    
+//             console.log('summary for the text' + this.summaries[this.summaries.length-1]);
+//             console.log('current index is: ' + this.index);
+
+//             if (this.listory.length >= (this.index + this.batchSize + this.buffer)){
+//                 // automatically summarise recursively
+//                 this.summariseHistory();
+//             } else {
+//                 this.isSummarising = false;
+//             }
+//         });
+//     }
+
+//     conversationPrompt(){
+//         let builtInText = "We'll be learning about NLP, we've already discussed:";
+//         let restHist = this.historyToText(this.index);
+//         console.log(this.summaries);
+//         return `${builtInText}\n${this.summaries.join(' ')}\n${restHist}AI:`;
+        
+//     }
+// }
+
+// Prompt will be a constant amount, it'll be the hierachical summarisation of the past summaries.
 class Model2{
     constructor(index, buffer, batchSize, histPath){
         this.index = index;
@@ -231,6 +309,14 @@ class Model2{
     }
 }
 
+// Prompt will be the 
+class Model3{
+
+}
+
+class Model4{
+
+}
 let conversation2 = new Model2(0, 10, 10, "./history2.json");
 
 let conversation1 = new Model1("./history1.json");

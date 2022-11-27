@@ -4,7 +4,7 @@
   "description": "",
   "main": "app.js",
   "scripts": {
-    "start": "source app_env && node server.js",
+    "start": "zsh start.sh",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
