@@ -98,7 +98,7 @@ class Model1{
             // Update the starting index of the history which haven't summerised
             this.index = this.counter * this.batchSize;
     
-            console.log('summary for the text' + this.summaries[this.summaries.length-1]);
+            console.log('summary for the text: ' + this.summaries[this.summaries.length-1]);
             console.log('current index is: ' + this.index);
 
             if (this.listory.length >= (this.index + this.batchSize + this.buffer)){
