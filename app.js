@@ -7,7 +7,7 @@ app.use(express.static("client"));
 
 /*
 TODO:
-- Reconstruct a proper bench mark dialouge which should have the property of: Different topics, each topics should be in different length, 
+- 
 - 
 */ 
 
@@ -25,6 +25,7 @@ const openai2 = new OpenAIApi(configuration2);
 // listory => a verb i made means the list of history lmao :D
 // Concatenating summaries for different batches into the prompt
 
+// Model 1 is for 
 class Model1{
     constructor(histPath, batchSize=10, buffer=10){
         this.histPath = histPath;
@@ -68,7 +69,7 @@ class Model1{
         openai2.createCompletion({
             model: "text-davinci-002",
             prompt:
-            // ffs I spent ages to debug and it turns out the prompt has to be in this format :/
+            // well, it turns out the prompt has to be in this format :/
     `Dialogue 1: 
     Human: Can you teach me Chinese?
     AI: I'm sorry, but I don't know how to speak Chinese.
