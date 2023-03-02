@@ -1,15 +1,58 @@
 const { Configuration, OpenAIApi } = require("openai");
 const express = require("express");
 const fs = require("fs");
+const spawn = require("child_process").spawn;
+const StreamSplitter = require("stream-splitter");
+const crypto = require("crypto");
 const app = express();
 app.use(express.json()); // parse JSON requests
 app.use(express.static("client"));
 
-/*
-TODO:
-- 
-- 
-*/ 
+let MAXID = 100000;
+
+// Communicate with python -> get best prompt
+// (JS) spawn python script, listend to stdout and stderr
+// (Python) load and process dataset
+// start HTTP server
+// (JS) get batch to summarise
+// send the batch to the python HTTP server
+// (Python) look at the batch, pick the best thing and send it back
+// (JS) summarise the batch
+// POSSIBLY:
+// (Python) crashes
+// (JS) see that python crashed by looking at stderr
+// spawn python script again
+const p = spawn('python3.9',["PromptSelecter.py"]);
+p.stdin.setEncoding('utf-8');
+const p_stdout = p.stdout.pipe(StreamSplitter("\n"));
+
+// debugging
+p_stdout.on('token', data => console.log(`Python says: ${data} \n`));
+p.stderr.on('data', data => console.log(`Python stderr says: ${data}`));
+
+const TalkToPython = (body, cb) => {
+    // generate ID
+    let id = crypto.randomBytes(16).toString("hex");
+    // listener deals with what python sends back 
+    let listener = (data) => { // assume python returns id, data
+        let txt = data.toString();
+        let arr = txt.split(',');
+        let parsed_id = arr.shift();
+        let remainder = arr.join(',');
+        if (parsed_id == id) {
+            p_stdout.removeListener('token', listener);
+            cb(JSON.parse(remainder));
+        }
+    }
+    // Whenever there is an output from Python, this runs
+    p_stdout.addListener('token', listener);
+
+    p.stdin.cork();
+    p.stdin.write(`${id},${JSON.stringify(body)}\n`);
+    p.stdin.uncork();
+}
+
+
 
 // Apply GPT-3 to do summerisation
 const configuration2 = new Configuration({
@@ -64,63 +107,70 @@ class Model1{
         return buffer;
     }
 
+    historyBatch(start=0, end=-1) {
+        if (end < 0) {end = this.listory.length}
+        return this.listory.slice(start,end);
+    }
+
     summariseHistory(){
         this.isSummarising = true;
-        openai2.createCompletion({
-            model: "text-davinci-002",
-            prompt:
-            // well, it turns out the prompt has to be in this format :/
-    `Dialogue 1: 
-    Human: Can you teach me Chinese?
-    AI: I'm sorry, but I don't know how to speak Chinese.
-    Human: Maybe you can teach me German then?
-    AI: I'm sorry, but I also don't know how to speak German.
 
-    Summary 1:
-    The topics discussed were learning Chinese and learning German.
-    
-    Dialogue 2:
-    Human: Have you ever read Dracula?
-    AI: Yes, I have actually read Dracula. It's a classic novel by Bram Stoker.
-    Human: Do you read a lot of books?
-    AI: Yes, I love reading books!
+        let batch = {
+            batch: this.historyBatch(this.index, (this.index + this.batchSize)),
+            shots_count: 2,
+        };
 
-    Summary 2:
-    The topics discussed were Dracula and reading books.
+        TalkToPython(batch, (resp) => {
+            openai2.createCompletion({
+                model: "text-davinci-002",
+                prompt:
+                // well, it turns out the prompt has to be in this format :/
+        `Dialogue 1: 
+        ${resp[0]['dialogue']}
 
-    Dialogue 3:
-    ${this.historyToText(this.index, (this.index + this.batchSize))}
+        Summary 1:
+        ${resp[0]['summary']}
+        
+        Dialogue 2:
+        ${resp[1]['dialogue']}
 
-    Summary 3:
-    The topics discussed were`,
-            temperature: 0.7,
-            max_tokens: 256,
-            top_p: 1,
-            frequency_penalty: 0,
-            presence_penalty: 0,
-        }).then(gpt => {
-            this.summaries.push(gpt.data.choices[0].text);
-    
-            this.counter += 1;
-            // Update the starting index of the history which haven't summerised
-            this.index = this.counter * this.batchSize;
-    
-            console.log('summary for the text: ' + this.summaries[this.summaries.length-1]);
-            console.log('current index is: ' + this.index);
+        Summary 2:
+        ${resp[1]['summary']}
 
-            if (this.listory.length >= (this.index + this.batchSize + this.buffer)){
-                // automatically summarise recursively
-                this.summariseHistory();
-            } else {
-                this.isSummarising = false;
-            }
+        Dialogue 3:
+        ${this.historyToText(this.index, (this.index + this.batchSize))}
+
+        Summary 3:
+        The topics discussed were`,
+                temperature: 0.7,
+                max_tokens: 256,
+                top_p: 1,
+                frequency_penalty: 0,
+                presence_penalty: 0,
+            }).then(gpt => {
+                this.summaries.push(gpt.data.choices[0].text);
+        
+                this.counter += 1;
+                // Update the starting index of the history which haven't summerised
+                this.index = this.counter * this.batchSize;
+        
+                console.log('summary for the text: ' + this.summaries[this.summaries.length-1]);
+                console.log('current index is: ' + this.index);
+
+                if (this.listory.length >= (this.index + this.batchSize + this.buffer)){
+                    // automatically summarise recursively
+                    this.summariseHistory();
+                } else {
+                    this.isSummarising = false;
+                }
+            });
         });
     }
 
     conversationPrompt(){
         let builtInText = "We'll be learning about NLP, we've already discussed:";
         let restHist = this.historyToText(this.index);
-        console.log(this.summaries);
+        console.log(`what is says is ${this.summaries}`);
         return `${builtInText}\n${this.summaries.join(' ')}\n${restHist}AI:`;
         
     }
@@ -241,59 +291,58 @@ class Model2{
         }
     }
     
+    
     summariseHistory(){
         this.isSummarising = true;
-        openai2.createCompletion({
-            model: "text-davinci-002",
-            prompt:
-            // ffs I spent ages to debug and it turns out the prompt has to be in this format :/
-    `Old Summary 1:
-    The topics discussed were maths homework and geography homework.
+        TalkToPython(batch, (resp) => {
 
-    Dialogue 1: 
-    Human: Can you teach me Chinese?
-    AI: I'm sorry, but I don't know how to speak Chinese.
-    Human: Maybe you can teach me German then?
-    AI: I'm sorry, but I also don't know how to speak German.
-
+            openai2.createCompletion({
+                model: "text-davinci-002",
+                prompt:
+                `Old Summary 1:
+                ${resp[0]}
+                
+                Dialogue 1: 
+                ${resp[1]}
+                
     Summary 1:
     The topics discussed were homework, learning Chinese and learning German.
     
     Old Summary 2:
     The topics discussed were zombies, garlic, transformers, and vampires.
-
+    
     Dialogue 2:
     Human: Have you ever read Dracula?
     AI: Yes, I have actually read Dracula. It's a classic novel by Bram Stoker.
     Human: Do you read a lot of books?
     AI: Yes, I love reading books!
-
+    
     Summary 2:
     The topics discussed were zombies, garlic, transformers, vampires, Dracula, and reading books.
-
+    
     Old Summary 3:
     The topics discussed were ${this.currentSummary}
-
+    
     Dialogue 3:
     ${this.historyToText(this.index, (this.index + this.batchSize))}
-
+    
     Summary 3:
     The topics discussed were`,
-            temperature: 0.7,
-            max_tokens: 256,
-            top_p: 1,
-            frequency_penalty: 0,
+    temperature: 0.7,
+    max_tokens: 256,
+    top_p: 1,
+    frequency_penalty: 0,
             presence_penalty: 0,
         }).then(gpt => {
             this.currentSummary = gpt.data.choices[0].text;
-    
+            
             this.counter += 1;
             // Update the starting index of the history which haven't summerised
             this.index = this.counter * this.batchSize;
-    
+            
             console.log('summary for the text' + this.currentSummary);
             console.log('current index is: ' + this.index);
-
+            
             if (this.listory.length >= (this.index + this.batchSize + this.buffer)){
                 // automatically summarise recursively
                 this.summariseHistory();
@@ -301,8 +350,9 @@ class Model2{
                 this.isSummarising = false;
             }
         });
+    })
     }
-
+    
     conversationPrompt(){
         let builtInText = "We'll be learning about NLP, we've already discussed:";
         let restHist = this.historyToText(this.index);
@@ -352,17 +402,17 @@ app.post("/send", (req, res) => {
         conversation[req.query.model].push("AI", gpt.data.choices[0].text, gpt.data.created);
         res.send({
             text: gpt.data.choices[0].text,
-            promp: conversation[req.query.model].conversationPrompt()
+            // prompt: conversation[req.query.model].conversationPrompt()
         });
     }).catch(err => {
-        console.log(err);
+        console.log(`err msg ${err}`);
         res.status(500);
         res.send(err);
     });
 });
 
 app.post('*', (req, res) => {
-    console.log(req);
+    console.log(`req: ${req}`);
 });
 
 // Send past conversation to log in front-end from server side
@@ -385,3 +435,5 @@ app.get('/history', (req, res) =>{
 
 
 module.exports = app;
+
+

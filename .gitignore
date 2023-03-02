@@ -134,3 +134,4 @@ app_env
 
 corpus
 .ipynb_checkpoints
+__pycache__
