@@ -75,8 +75,6 @@ df1['size'] = df1['dialogue'].map(get_size)
 
 while True:
     raw = input()
-
-
     a = {"payload": 'javascript yo hey!'}
     id,json_str = raw.split(',',1)
     body = json.loads(json_str)
@@ -108,5 +106,5 @@ while True:
     
     shots_to_js = shots.to_json(orient='records')
 
-    print(f"{id},{shots_to_js}", flush=True)
+    # print(f"{id},{shots_to_js}", flush=True)
 
