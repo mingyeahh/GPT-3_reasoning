@@ -12,7 +12,7 @@ app.use(express.static("client"));
 let MAXID = 100000;
 
 
-const p = spawn('python3.9',["PromptSelecter.py"]);
+const p = spawn('python3',["PromptSelecter.py"]);
 p.stdin.setEncoding('utf-8');
 const p_stdout = p.stdout.pipe(StreamSplitter("\n"));
 
@@ -365,16 +365,50 @@ class Model3{
 
 }
 
-class Model4{
+class Playground{
+    constructor(histPath){
+        this.histPath = histPath;
+        this.listory = require(this.histPath);
+    }
 
+    push(sender, msg, time) {
+        this.listory.push({
+            sender: sender,
+            msg: msg,
+            time: time,
+        });
+
+        fs.writeFileSync(this.histPath, JSON.stringify(this.listory));
+    }
+
+    // Get things from listory and put it into buffer to send to front-end
+    historyToText(start=0, end=-1) {
+        if (end < 0) {end = this.listory.length}
+        let buffer = [];
+        for (let i = start; i<end; i++){
+            let h = this.listory[i];
+            buffer.push({role:h.sender, content:h.msg});
+        }
+        return buffer;
+    }
+
+    conversationPrompt(){
+        // let builtInText = "This is a friendly conversation with your friend, we've already discussed:";
+        let dialogue = this.historyToText();
+        return dialogue;
+        
+    }
 }
 let conversation2 = new Model2(0, 10, 10, "./history2.json");
 
 let conversation1 = new Model1("./history1.json");
 
+let conversation4 = new Playground("./history4.json");
+
 let conversation = {
     1: conversation1,
     2: conversation2,
+    4: conversation4,
 };
 
 // Apply GTP-3 to answer questions based on input conversation
@@ -396,7 +430,7 @@ app.post("/send", (req, res) => {
         model: "gpt-3.5-turbo",
         messages:conversation[req.query.model].conversationPrompt(),
         temperature: 0.9,
-        max_tokens: 150,
+        max_tokens: 300,
     }).then(gpt => {
         conversation[req.query.model].push("assistant", gpt.data.choices[0].message.content, gpt.data.created);
         res.send({
