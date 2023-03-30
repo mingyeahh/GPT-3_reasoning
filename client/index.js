@@ -33,7 +33,7 @@ const formHandler = (e) => {
         },
     }).then((res) => {
         if (res.ok) {
-            console.log(`current target is ${frm}`);
+            // console.log(`current target is ${frm}`);
             frm.reset();
             return res.json();
         } else {

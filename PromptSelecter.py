@@ -106,5 +106,5 @@ while True:
     
     shots_to_js = shots.to_json(orient='records')
 
-    # print(f"{id},{shots_to_js}", flush=True)
+    print(f"{id},{shots_to_js}", flush=True)
 

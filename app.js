@@ -4,9 +4,12 @@ const fs = require("fs");
 const spawn = require("child_process").spawn;
 const StreamSplitter = require("stream-splitter");
 const crypto = require("crypto");
+const AsyncLock = require("async-lock");
 const app = express();
 app.use(express.json()); // parse JSON requests
 app.use(express.static("client"));
+
+let lock = new AsyncLock();
 
 // Set IDs for each 
 let MAXID = 100000;
@@ -17,8 +20,8 @@ p.stdin.setEncoding('utf-8');
 const p_stdout = p.stdout.pipe(StreamSplitter("\n"));
 
 // debugging
-p_stdout.on('token', data => console.log(`Python says: ${data} \n`));
-p.stderr.on('data', data => console.log(`Python stderr says: ${data}`));
+// p_stdout.on('token', data => console.log(`Python says: ${data} \n`));
+// p.stderr.on('data', data => console.log(`Python stderr says: ${data}`));
 
 const TalkToPython = (body, cb) => {
     // generate ID
@@ -50,7 +53,7 @@ const configuration2 = new Configuration({
 });
 const openai2 = new OpenAIApi(configuration2);
 
-// openai2.retrieveModel('text-davinci-003').then(res => console.log(res.data));
+// openai2.retrieveModel('gpt-4').then(res => console.log(res.data));
 
 
 
@@ -62,86 +65,7 @@ const openai2 = new OpenAIApi(configuration2);
 // Concatenating summaries for different batches into the prompt
 
 // Original Model 1 -> prompt is the stacked summaries
-// class Model1{
-//     constructor(histPath, batchSize=10, buffer=10){
-//         this.histPath = histPath;
-//         this.listory = require(this.histPath);
-//         this.counter = 0;
-//         this.index = 0;
-//         this.batchSize = batchSize;
-//         this.buffer = buffer;
-//         this.summaries = [];
-//         if (this.listory.length >= (this.index + this.batchSize + this.buffer)){
-//             // automatically summarise recursively
-//             this.summariseHistory();
-//         }
-//     }
-
-//     push(sender, msg, time) {
-//         this.listory.push({
-//             sender: sender,
-//             msg: msg,
-//             time: time,
-//         });
-//         if (this.listory.length >= (this.index + this.batchSize + this.buffer)){
-//             // automatically summarise recursively
-//             this.summariseHistory();
-//         }
-//         fs.writeFileSync(this.histPath, JSON.stringify(this.listory));
-//     }
-
-//     historyToText(start=0, end=-1) {
-//         if (end < 0) {end = this.listory.length}
-//         let buffer = "";
-//         for (let i = start; i<end; i++){
-//             let h = this.listory[i];
-//             buffer = buffer.concat(`${h.sender}: ${h.msg}\n`);
-//         }
-//         return buffer;
-//     }
-
-//     summariseHistory(){
-//         this.isSummarising = true;
-//         openai2.createCompletion({
-//             model: "text-davinci-002",
-//             prompt:`${this.historyToText(this.index, (this.index + this.batchSize))}\n\nTl;dr`,
-//             temperature: 0.7,
-//             max_tokens: 256,
-//             top_p: 1,
-//             frequency_penalty: 0,
-//             presence_penalty: 0,
-//         }).then(gpt => {
-//             this.summaries.push(gpt.data.choices[0].text);
-    
-//             this.counter += 1;
-//             // Update the starting index of the history which haven't summerised
-//             this.index = this.counter * this.batchSize;
-    
-//             console.log('summary for the text' + this.summaries[this.summaries.length-1]);
-//             console.log('current index is: ' + this.index);
-
-//             if (this.listory.length >= (this.index + this.batchSize + this.buffer)){
-//                 // automatically summarise recursively
-//                 this.summariseHistory();
-//             } else {
-//                 this.isSummarising = false;
-//             }
-//         });
-//     }
-
-//     conversationPrompt(){
-//         let builtInText = "We'll be learning about NLP, we've already discussed:";
-//         let restHist = this.historyToText(this.index);
-//         console.log(this.summaries);
-//         return `${builtInText}\n${this.summaries.join(' ')}\n${restHist}AI:`;
-        
-//     }
-// }
-
-
-
-// Model 1 is just summarise things and put them into the prompt tgt
-// Prompt: each summarised memories stacking together
+/*
 class Model1{
     constructor(histPath, batchSize=10, buffer=10){
         this.histPath = histPath;
@@ -172,10 +96,101 @@ class Model1{
 
     historyToText(start=0, end=-1) {
         if (end < 0) {end = this.listory.length}
-        let buffer = [];
+        let buffer = "";
         for (let i = start; i<end; i++){
             let h = this.listory[i];
-            buffer.push({role:h.sender, content:h.msg});
+            buffer = buffer.concat(`${h.sender}: ${h.msg}\n`);
+        }
+        return buffer;
+    }
+
+    summariseHistory(){
+        this.isSummarising = true;
+        openai2.createCompletion({
+            model: "text-davinci-002",
+            prompt:`${this.historyToText(this.index, (this.index + this.batchSize))}\n\nTl;dr`,
+            temperature: 0.7,
+            max_tokens: 256,
+            top_p: 1,
+            frequency_penalty: 0,
+            presence_penalty: 0,
+        }).then(gpt => {
+            this.summaries.push(gpt.data.choices[0].text);
+    
+            this.counter += 1;
+            // Update the starting index of the history which haven't summerised
+            this.index = this.counter * this.batchSize;
+    
+            console.log('summary for the text' + this.summaries[this.summaries.length-1]);
+            console.log('current index is: ' + this.index);
+
+            if (this.listory.length >= (this.index + this.batchSize + this.buffer)){
+                // automatically summarise recursively
+                this.summariseHistory();
+            } else {
+                this.isSummarising = false;
+            }
+        });
+    }
+
+    conversationPrompt(){
+        let builtInText = "We'll be learning about NLP, we've already discussed:";
+        let restHist = this.historyToText(this.index);
+        console.log(this.summaries);
+        return `${builtInText}\n${this.summaries.join(' ')}\n${restHist}AI:`;
+        
+    }
+}
+// */
+
+// Model 1 is just summarise things and put them into the prompt tgt
+// Prompt: each summarised memories stacking together
+class Model1{
+    constructor(histPath, batchSize=10, buffer=10){
+        this.histPath = histPath;
+        this.listory = require(this.histPath);
+        this.counter = 0;
+        this.index = 0;
+        this.batchSize = batchSize;
+        this.buffer = buffer;
+        this.summaries = [];
+        this.lockKey = crypto.randomBytes(16).toString("hex");
+        lock.acquire(this.lockKey, (done) => {
+            if (this.listory.length >= (this.index + this.batchSize + this.buffer)){
+                // automatically summarise recursively
+                console.log('summarising in constructor')
+                this.summariseHistory(done);
+            } else {done();}
+        }, ()=>{console.log('finished from constructor')});
+    }
+
+    push(sender, msg, time) {
+        this.listory.push({
+            sender: sender,
+            msg: msg,
+            time: time,
+        });
+        lock.acquire(this.lockKey, (done) => {
+            console.log('push got the lock')
+            if (this.listory.length >= (this.index + this.batchSize + this.buffer)){
+                // automatically summarise recursively
+                console.log('summarising in push')
+                this.summariseHistory(done);
+            } else {done();}
+        }, ()=>{console.log('finished from push')});
+        fs.writeFileSync(this.histPath, JSON.stringify(this.listory));
+    }
+
+    historyToText(start=0, end=-1, as_string=false) {
+        if (end < 0 || end > this.listory.length) {end = this.listory.length}
+        let buffer = as_string ? "" : [];
+        for (let i = start; i<end; i++){
+            let h = this.listory[i];
+            if (as_string) {
+                buffer = buffer.concat(`${h.sender}: ${h.msg}\n`);
+            } else {
+                buffer.push({role:h.sender, content:h.msg});
+            }
         }
         return buffer;
     }
@@ -185,15 +200,15 @@ class Model1{
         return this.listory.slice(start,end);
     }
 
-    summariseHistory(){
-        this.isSummarising = true;
-
+    summariseHistory(cb){
         let batch = {
             batch: this.historyBatch(this.index, (this.index + this.batchSize)),
             shots_count: 2,
         };
 
         TalkToPython(batch, (resp) => {
+            console.log(resp[0]['dialogue']);
+            console.log(resp[0]['summary']);
             openai2.createCompletion({
                 model: "text-davinci-003",
                 prompt:
@@ -211,7 +226,7 @@ class Model1{
         ${resp[1]['summary']}
 
         Dialogue 3:
-        ${this.historyToText(this.index, (this.index + this.batchSize))}
+        ${this.historyToText(this.index, (this.index + this.batchSize), true)}
 
         Summary 3:
         The topics discussed were`,
@@ -232,19 +247,20 @@ class Model1{
 
                 if (this.listory.length >= (this.index + this.batchSize + this.buffer)){
                     // automatically summarise recursively
-                    this.summariseHistory();
+                    console.log('summarising recursively')
+                    this.summariseHistory(cb);
                 } else {
-                    this.isSummarising = false;
+                    cb();
                 }
             });
         });
     }
 
     conversationPrompt(){
-        // let builtInText = "This is a friendly conversation with your friend, we've already discussed:";
+        let builtInText = {role:'system', content:'Your name is Melenie, you are an encouraging language teacher who is going teach elderly people to learn a new language step by step online by text. You will need to ask the student\'s level of the language they want to learn first before setting teaching schedules and teaching them. You will give them an outline of topics to learn at the start as well. In the following dialogue, you need to stick to the character and provide high quality language lesson to the student. The lesson should be interactive and practical, and always ask students whether they process well.'};
         let restHist = this.historyToText(this.index);
-        // console.log(`what is says is ${this.summaries}`);
-        return [{role: 'system', content: this.summaries.join(' ')}].concat(restHist);
+        console.log(`The current summary is:\n ${this.summaries}`);
+        return [builtInText, {role: 'system', content: this.summaries.join(' ')}].concat(restHist);
         
     }
 }
@@ -393,21 +409,25 @@ class Playground{
     }
 
     conversationPrompt(){
-        // let builtInText = "This is a friendly conversation with your friend, we've already discussed:";
-        let dialogue = this.historyToText();
+        let builtInText = {role:'system', content:'Your name is Melenie, you are an encouraging language teacher who is going teach elderly people to learn a new language step by step online by text. You will need to ask the student\'s level of the language they want to learn first before setting teaching schedules and teaching them. You will give them an outline of topics to learn at the start as well. In the following dialogue, you need to stick to the character and provide high quality language lesson to the student.'};
+        let dialogue = [builtInText, ...this.historyToText()];
         return dialogue;
         
     }
 }
-let conversation2 = new Model2(0, 10, 10, "./history2.json");
 
 let conversation1 = new Model1("./history1.json");
+
+let conversation2 = new Model2(0, 10, 10, "./history2.json");
+
+
 
 let conversation4 = new Playground("./history4.json");
 
 let conversation = {
     1: conversation1,
     2: conversation2,
+    // 3: conversation3,
     4: conversation4,
 };
 
@@ -430,7 +450,7 @@ app.post("/send", (req, res) => {
         model: "gpt-3.5-turbo",
         messages:conversation[req.query.model].conversationPrompt(),
         temperature: 0.9,
-        max_tokens: 300,
+        max_tokens: 500,
     }).then(gpt => {
         conversation[req.query.model].push("assistant", gpt.data.choices[0].message.content, gpt.data.created);
         res.send({
