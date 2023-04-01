@@ -207,8 +207,8 @@ class Model1{
         };
 
         TalkToPython(batch, (resp) => {
-            console.log(resp[0]['dialogue']);
-            console.log(resp[0]['summary']);
+            // console.log(resp[0]['dialogue']);
+            // console.log(resp[0]['summary']);
             openai2.createCompletion({
                 model: "text-davinci-003",
                 prompt:
@@ -229,7 +229,7 @@ class Model1{
         ${this.historyToText(this.index, (this.index + this.batchSize), true)}
 
         Summary 3:
-        The topics discussed were`,
+        The user and the assistant talked about`,
                 temperature: 0.7,
                 max_tokens: 256,
                 top_p: 1,
@@ -257,10 +257,10 @@ class Model1{
     }
 
     conversationPrompt(){
-        let builtInText = {role:'system', content:'Your name is Melenie, you are an encouraging language teacher who is going teach elderly people to learn a new language step by step online by text. You will need to ask the student\'s level of the language they want to learn first before setting teaching schedules and teaching them. You will give them an outline of topics to learn at the start as well. In the following dialogue, you need to stick to the character and provide high quality language lesson to the student. The lesson should be interactive and practical, and always ask students whether they process well.'};
+        let builtInText = {role:'system', content:'Your name is Melenie, you are an encouraging language teacher who is going to help the user practice speaking in their target language. Your language course is focusing on helping people practice their language in different topics and scenarios, you will need to talk to them in English too, to point out their grammar mistakes for them as well as recommend them some relevant vocabulary and phrases to use. You will need to ask the student\'s level of the language and topics they want to learn about before setting teaching schedules and teaching them. You will give them an outline of topics to learn at the start as well. In the following dialogue, you need to stick to this character and provide high quality language lessons to the student. The lessons should be interactive and practical, and always ask students whether they process the information well.'};
         let restHist = this.historyToText(this.index);
         console.log(`The current summary is:\n ${this.summaries}`);
-        return [builtInText, {role: 'system', content: this.summaries.join(' ')}].concat(restHist);
+        return [builtInText, {role: 'system', content: 'You and the user have previously talked about ' + this.summaries.join(' ')}].concat(restHist);
         
     }
 }
@@ -277,21 +277,34 @@ class Model2{
         this.listory = require(this.histPath);
         this.counter = 0;
         this.currentSummary = "";
-        this.isSummarising = false;
-        if (this.listory.length >= (this.index + this.batchSize + this.buffer)){
-            this.summariseHistory();
-        }
+        this.lockKey = crypto.randomBytes(16).toString("hex");
+        lock.acquire(this.lockKey, (done) => {
+            if (this.listory.length >= (this.index + this.batchSize + this.buffer)){
+                // automatically summarise recursively
+                console.log('summarising in constructor')
+                this.summariseHistory(done);
+            } else {done();}
+        }, ()=>{console.log('finished from constructor')});
     }
     
-// Set the starting and ending index of the conversation batch we need to use
-    historyToText(start=0, end=-1) {
-        if (end < 0) {end = this.listory.length}
-        let buffer = [];
+    // Set the starting and ending index of the conversation batch we need to use
+    historyToText(start=0, end=-1, as_string=false) {
+        if (end < 0 || end > this.listory.length) {end = this.listory.length}
+        let buffer = as_string ? "" : [];
         for (let i = start; i<end; i++){
             let h = this.listory[i];
-            buffer.push({role:h.sender, content:h.msg});
+            if (as_string) {
+                buffer = buffer.concat(`${h.sender}: ${h.msg}\n`);
+            } else {
+                buffer.push({role:h.sender, content:h.msg});
+            }
         }
         return buffer;
+    }
+
+    historyBatch(start=0, end=-1) {
+        if (end < 0) {end = this.listory.length}
+        return this.listory.slice(start,end);
     }
 
     push(sender, msg, time) {
@@ -300,79 +313,97 @@ class Model2{
             msg: msg,
             time: time,
         });
+        lock.acquire(this.lockKey, (done) => {
+            console.log('push got the lock')
+            if (this.listory.length >= (this.index + this.batchSize + this.buffer)){
+                // automatically summarise recursively
+                console.log('summarising in push')
+                this.summariseHistory(done);
+            } else {done();}
+        }, ()=>{console.log('finished from push')});
         fs.writeFileSync(this.histPath, JSON.stringify(this.listory));
-        if (this.listory.length >= (this.index + this.batchSize + this.buffer)){
-            this.summariseHistory();
-        }
     }
     
     
-    summariseHistory(){
-        this.isSummarising = true;
-        TalkToPython(batch, (resp) => {
-
-            openai2.createCompletion({
-                model: "text-davinci-002",
-                prompt:
-                `Old Summary 1:
-                ${resp[0]}
-                
-                Dialogue 1: 
-                ${resp[1]}
-                
-    Summary 1:
-    The topics discussed were homework, learning Chinese and learning German.
-    
-    Old Summary 2:
-    The topics discussed were zombies, garlic, transformers, and vampires.
-    
-    Dialogue 2:
-    Human: Have you ever read Dracula?
-    AI: Yes, I have actually read Dracula. It's a classic novel by Bram Stoker.
-    Human: Do you read a lot of books?
-    AI: Yes, I love reading books!
-    
-    Summary 2:
-    The topics discussed were zombies, garlic, transformers, vampires, Dracula, and reading books.
-    
-    Old Summary 3:
-    The topics discussed were ${this.currentSummary}
-    
-    Dialogue 3:
-    ${this.historyToText(this.index, (this.index + this.batchSize))}
-    
-    Summary 3:
-    The topics discussed were`,
-    temperature: 0.7,
-    max_tokens: 256,
-    top_p: 1,
-    frequency_penalty: 0,
-            presence_penalty: 0,
-        }).then(gpt => {
-            this.currentSummary = gpt.data.choices[0].text;
-            
+    summariseHistory(cb){
+        let advanceSummariser = () => {
             this.counter += 1;
             // Update the starting index of the history which haven't summerised
             this.index = this.counter * this.batchSize;
-            
-            console.log('summary for the text' + this.currentSummary);
+    
+            console.log('summary for the text: ' + this.currentSummary);
             console.log('current index is: ' + this.index);
-            
+
             if (this.listory.length >= (this.index + this.batchSize + this.buffer)){
                 // automatically summarise recursively
-                this.summariseHistory();
+                console.log('summarising recursively')
+                this.summariseHistory(cb);
             } else {
-                this.isSummarising = false;
+                cb();
             }
+        }
+
+        let batch = {
+            batch: this.historyBatch(this.index, (this.index + this.batchSize)),
+            shots_count: 2,
+        };
+        
+        TalkToPython(batch, (resp) => {
+            // console.log(resp[0]['dialogue']);
+            // console.log(resp[0]['summary']);
+            openai2.createCompletion({
+                model: "text-davinci-003",
+                prompt:
+`Dialogue 1: 
+${resp[0]['dialogue']}
+
+Summary 1:
+${resp[0]['summary']}
+
+Dialogue 2:
+${resp[1]['dialogue']}
+
+Summary 2:
+${resp[1]['summary']}
+
+Dialogue 3:
+${this.historyToText(this.index, (this.index + this.batchSize), true)}
+
+Summary 3:
+Perviously was discussing`,
+                temperature: 0.7,
+                max_tokens: 256,
+                top_p: 1,
+                frequency_penalty: 0,
+                presence_penalty: 0,
+            }).then(gpt => {
+                let A = gpt.data.choices[0].text;
+                console.log(`batch summary: ${A}`);
+ 
+                if (this.currentSummary === "") {
+                    this.currentSummary = A;
+                    advanceSummariser();
+                } else {
+                    let B = this.currentSummary;
+                    openai.createChatCompletion({
+                        model: "gpt-3.5-turbo",
+                        messages: [{role: 'user', content: `The user and the assistant previously talked about ${B}. They also talked about ${A}.\n Please summerise the given information above.`}],
+                        temperature: 0.9,
+                        max_tokens: 300,
+                    }).then(gpt =>{
+                        this.currentSummary = gpt.data.choices[0].message.content;
+                        advanceSummariser();
+                    });
+                }
+            });
         });
-    })
     }
     
     conversationPrompt(){
-        // let builtInText = "We'll be learning about NLP, we've already discussed:";
+        let builtInText = {role:'system', content:'Your name is Melenie, you are an encouraging language teacher who is going to help the user practice speaking in their target language. Your language course is focusing on helping people practice their language in different topics and scenarios, you will need to talk to them in English too, to point out their grammar mistakes for them as well as recommend them some relevant vocabulary and phrases to use. You will need to ask the student\'s level of the language and topics they want to learn about before setting teaching schedules and teaching them. You will give them an outline of topics to learn at the start as well. In the following dialogue, you need to stick to this character and provide high quality language lessons to the student. The lessons should be interactive and practical, and always ask students whether they process the information well.'};
         let restHist = this.historyToText(this.index);
-        console.log([{role: 'system',content : this.currentSummary}].concat(restHist))
-        return [{role: 'system',content : this.currentSummary}].concat(restHist);
+        console.log([{role: 'system', content : this.currentSummary}])
+        return [builtInText, {role: 'system',content : this.currentSummary}].concat(restHist);
     }
 }
 
@@ -416,7 +447,7 @@ class Playground{
     }
 }
 
-let conversation1 = new Model1("./history1.json");
+// let conversation1 = new Model1("./history1.json");
 
 let conversation2 = new Model2(0, 10, 10, "./history2.json");
 
@@ -425,7 +456,7 @@ let conversation2 = new Model2(0, 10, 10, "./history2.json");
 let conversation4 = new Playground("./history4.json");
 
 let conversation = {
-    1: conversation1,
+    // 1: conversation1,
     2: conversation2,
     // 3: conversation3,
     4: conversation4,
