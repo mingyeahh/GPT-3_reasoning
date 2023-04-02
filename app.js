@@ -8,12 +8,29 @@ const AsyncLock = require("async-lock");
 const app = express();
 app.use(express.json()); // parse JSON requests
 app.use(express.static("client"));
+const {get_encoding} = require('@dqbd/tiktoken')
 
 let lock = new AsyncLock();
 
+/*
+ * TODO:
+ - 1. Manually set the shorter memory limitation for all of the models into the same limit by token  -> for efficient evaluation purposes
+ * 2. Setting the system prompt
+ * 3. Prepare a lot of different scripts
+ * 4. Do both of the experiments
+ * 5. Set standards for the evaluations 
+ * 6. Experiment and log results
+ * 7. Model-3(optional)
+*/
+
+const conversationStart = `Your name is Melanie, you are an encouraging language teacher who is going to help the user practice speaking in their target language. Your teaching should focus on the following principles: 
+1. You will need to ask the student\'s target language, their level of the language, and topics they want to learn about before setting teaching schedules and teaching them.
+2. You will give them an detailed outline of topics to learn at the start.
+3. Your language course is focusing on helping people practice their language in different topics and scenarios, you will need to talk to them in English too for teaching, and to point out their grammar mistakes for them as well as recommend them some relevant vocabulary and phrases to use.  In the following dialogue, you need to stick to this character and provide high quality language lessons to the student. The lessons should be interactive and practical, and always ask students whether they process the information well.`;
+
 // Set IDs for each 
 let MAXID = 100000;
-
+let limit = 1800;
 
 const p = spawn('python3',["PromptSelecter.py"]);
 p.stdin.setEncoding('utf-8');
@@ -45,7 +62,24 @@ const TalkToPython = (body, cb) => {
     p.stdin.uncork();
 }
 
-
+let enc = get_encoding("cl100k_base");
+const SetLimit = (prompt) => {
+    let remaining = limit;
+    // go through the prompt, starting at the end -> count the tokens
+    for (let i = prompt.length-1; i >= 0; i--) {
+        let encoded = enc.encode(prompt[i].content);
+        remaining -= encoded.length;
+        if (remaining <= 0) {
+            // this is the first message we should include
+            let j = -remaining;
+            let oded = encoded.slice(j);
+            let croppedPrompt = [{role: prompt[i].role, content: new TextDecoder().decode(enc.decode(oded))}, ...prompt.slice(i+1)];
+            console.log(new TextDecoder().decode(enc.decode(oded)));
+            return {prompt: croppedPrompt, cutoff: [prompt[i].role==='system' ? -1 : prompt.length-i, new TextDecoder().decode(enc.decode(encoded.slice(0,j))).length]};
+        }
+    }
+    return {prompt: prompt, cutoff: [-1,-1]};
+}
 
 // Apply GPT-3 to do summerisation
 const configuration2 = new Configuration({
@@ -158,10 +192,9 @@ class Model1{
         lock.acquire(this.lockKey, (done) => {
             if (this.listory.length >= (this.index + this.batchSize + this.buffer)){
                 // automatically summarise recursively
-                console.log('summarising in constructor')
                 this.summariseHistory(done);
             } else {done();}
-        }, ()=>{console.log('finished from constructor')});
+        }, ()=>{});
     }
 
     push(sender, msg, time) {
@@ -171,13 +204,11 @@ class Model1{
             time: time,
         });
         lock.acquire(this.lockKey, (done) => {
-            console.log('push got the lock')
             if (this.listory.length >= (this.index + this.batchSize + this.buffer)){
                 // automatically summarise recursively
-                console.log('summarising in push')
                 this.summariseHistory(done);
             } else {done();}
-        }, ()=>{console.log('finished from push')});
+        }, ()=>{});
         fs.writeFileSync(this.histPath, JSON.stringify(this.listory));
     }
 
@@ -207,8 +238,6 @@ class Model1{
         };
 
         TalkToPython(batch, (resp) => {
-            // console.log(resp[0]['dialogue']);
-            // console.log(resp[0]['summary']);
             openai2.createCompletion({
                 model: "text-davinci-003",
                 prompt:
@@ -247,7 +276,6 @@ class Model1{
 
                 if (this.listory.length >= (this.index + this.batchSize + this.buffer)){
                     // automatically summarise recursively
-                    console.log('summarising recursively')
                     this.summariseHistory(cb);
                 } else {
                     cb();
@@ -257,7 +285,7 @@ class Model1{
     }
 
     conversationPrompt(){
-        let builtInText = {role:'system', content:'Your name is Melenie, you are an encouraging language teacher who is going to help the user practice speaking in their target language. Your language course is focusing on helping people practice their language in different topics and scenarios, you will need to talk to them in English too, to point out their grammar mistakes for them as well as recommend them some relevant vocabulary and phrases to use. You will need to ask the student\'s level of the language and topics they want to learn about before setting teaching schedules and teaching them. You will give them an outline of topics to learn at the start as well. In the following dialogue, you need to stick to this character and provide high quality language lessons to the student. The lessons should be interactive and practical, and always ask students whether they process the information well.'};
+        let builtInText = {role:'system', content:conversationStart};
         let restHist = this.historyToText(this.index);
         console.log(`The current summary is:\n ${this.summaries}`);
         return [builtInText, {role: 'system', content: 'You and the user have previously talked about ' + this.summaries.join(' ')}].concat(restHist);
@@ -281,10 +309,9 @@ class Model2{
         lock.acquire(this.lockKey, (done) => {
             if (this.listory.length >= (this.index + this.batchSize + this.buffer)){
                 // automatically summarise recursively
-                console.log('summarising in constructor')
                 this.summariseHistory(done);
             } else {done();}
-        }, ()=>{console.log('finished from constructor')});
+        }, ()=>{});
     }
     
     // Set the starting and ending index of the conversation batch we need to use
@@ -314,13 +341,11 @@ class Model2{
             time: time,
         });
         lock.acquire(this.lockKey, (done) => {
-            console.log('push got the lock')
             if (this.listory.length >= (this.index + this.batchSize + this.buffer)){
                 // automatically summarise recursively
-                console.log('summarising in push')
                 this.summariseHistory(done);
             } else {done();}
-        }, ()=>{console.log('finished from push')});
+        }, ()=>{});
         fs.writeFileSync(this.histPath, JSON.stringify(this.listory));
     }
     
@@ -336,7 +361,6 @@ class Model2{
 
             if (this.listory.length >= (this.index + this.batchSize + this.buffer)){
                 // automatically summarise recursively
-                console.log('summarising recursively')
                 this.summariseHistory(cb);
             } else {
                 cb();
@@ -349,8 +373,6 @@ class Model2{
         };
         
         TalkToPython(batch, (resp) => {
-            // console.log(resp[0]['dialogue']);
-            // console.log(resp[0]['summary']);
             openai2.createCompletion({
                 model: "text-davinci-003",
                 prompt:
@@ -400,7 +422,7 @@ Perviously was discussing`,
     }
     
     conversationPrompt(){
-        let builtInText = {role:'system', content:'Your name is Melenie, you are an encouraging language teacher who is going to help the user practice speaking in their target language. Your language course is focusing on helping people practice their language in different topics and scenarios, you will need to talk to them in English too, to point out their grammar mistakes for them as well as recommend them some relevant vocabulary and phrases to use. You will need to ask the student\'s level of the language and topics they want to learn about before setting teaching schedules and teaching them. You will give them an outline of topics to learn at the start as well. In the following dialogue, you need to stick to this character and provide high quality language lessons to the student. The lessons should be interactive and practical, and always ask students whether they process the information well.'};
+        let builtInText = {role:'system', content:conversationStart};
         let restHist = this.historyToText(this.index);
         console.log([{role: 'system', content : this.currentSummary}])
         return [builtInText, {role: 'system',content : this.currentSummary}].concat(restHist);
@@ -440,14 +462,14 @@ class Playground{
     }
 
     conversationPrompt(){
-        let builtInText = {role:'system', content:'Your name is Melenie, you are an encouraging language teacher who is going teach elderly people to learn a new language step by step online by text. You will need to ask the student\'s level of the language they want to learn first before setting teaching schedules and teaching them. You will give them an outline of topics to learn at the start as well. In the following dialogue, you need to stick to the character and provide high quality language lesson to the student.'};
+        let builtInText = {role:'system', content:conversationStart};
         let dialogue = [builtInText, ...this.historyToText()];
         return dialogue;
         
     }
 }
 
-// let conversation1 = new Model1("./history1.json");
+let conversation1 = new Model1("./history1.json");
 
 let conversation2 = new Model2(0, 10, 10, "./history2.json");
 
@@ -456,7 +478,7 @@ let conversation2 = new Model2(0, 10, 10, "./history2.json");
 let conversation4 = new Playground("./history4.json");
 
 let conversation = {
-    // 1: conversation1,
+    1: conversation1,
     2: conversation2,
     // 3: conversation3,
     4: conversation4,
@@ -477,16 +499,17 @@ app.post("/send", (req, res) => {
         return;
     }
     conversation[req.query.model].push("user", msg, Math.floor(Date.now() / 1000));
+    let croppedPrompt = SetLimit(conversation[req.query.model].conversationPrompt());
     openai.createChatCompletion({
         model: "gpt-3.5-turbo",
-        messages:conversation[req.query.model].conversationPrompt(),
+        messages:croppedPrompt.prompt,
         temperature: 0.9,
         max_tokens: 500,
     }).then(gpt => {
         conversation[req.query.model].push("assistant", gpt.data.choices[0].message.content, gpt.data.created);
         res.send({
             text: gpt.data.choices[0].message.content,
-            // prompt: conversation[req.query.model].conversationPrompt()
+            prompt: croppedPrompt.cutoff,
         });
     }).catch(err => {
         console.log(`err msg ${err}`);

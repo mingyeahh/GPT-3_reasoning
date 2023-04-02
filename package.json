@@ -18,9 +18,11 @@
   },
   "homepage": "https://github.com/mingyeahh/GPT-3_reasoning#readme",
   "dependencies": {
+    "@dqbd/tiktoken": "^1.0.2",
     "async-lock": "^1.4.0",
     "express": "^4.18.2",
     "fs": "^0.0.1-security",
+    "gpt-3-encoder": "^1.1.4",
     "openai": "^3.2.1",
     "stream-splitter": "^0.3.2"
   }
