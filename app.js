@@ -509,7 +509,7 @@ app.post("/send", (req, res) => {
         conversation[req.query.model].push("assistant", gpt.data.choices[0].message.content, gpt.data.created);
         res.send({
             text: gpt.data.choices[0].message.content,
-            prompt: croppedPrompt.cutoff,
+            cutoff: croppedPrompt.cutoff,
         });
     }).catch(err => {
         console.log(`err msg ${err}`);

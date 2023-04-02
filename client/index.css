@@ -12,3 +12,11 @@
 .title{
     color: blue;
 }
+
+.marker-1, .marker-2, .marker-3, .marker-4 {
+    background-color: red;
+}
+
+.hidden {
+    background-color: initial;
+}
