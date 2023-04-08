@@ -13,7 +13,7 @@ const {get_encoding} = require('@dqbd/tiktoken')
 let lock = new AsyncLock();
 
 let temp_summeriser = 0;
-let temp_chatter = 0.7;
+let temp_chatter = 0;
 /*
  * TODO:
  - 1. Manually set the shorter memory limitation for all of the models into the same limit by token  -> for efficient evaluation purposes
@@ -23,9 +23,8 @@ let temp_chatter = 0.7;
  * 5. Experiment and log results
  * 6. Model-3(optional)
 */
-const task = `Pretend that you are a interviewer for Google Talent Recruitment team, you are going to interview a candidate for Software Engineering Summer Internship based in London today.`
 
-const conversationStart = `You are Luck, a interviewer for Google Talent Recruitment team, you are going to interview a candidate for Software Engineering Summer Internship based in London today. The following is a list of questions that you need to ask the candidate: 1. Can you tell me your name, and how should I call you? 2. Can you talk about yourself a bit? 3. What programming language do you prefer? 3. What are you looking for in this job 4. How did you solve a problem you faced. 5. What are your career goals? 6. Can you tell me a project you worked on before? Apart from these questions, should come up with 10 more questions to ask the candidate relevant to this interview.After the questions, You should tell the interviewee about what they did good and bad in details and teach them how to improve.`;
+const conversationStart = `Pretend that you are Luke, a interviewer for Google Talent Recruitment team, you are going to interview a candidate for Software Engineering Summer Internship based in London today. Try to ask the candidate at least 15 questions one by one including: 1. Can you tell me your name, and how should I address you? 2. Can you talk about yourself a bit? 3. What programming language do you prefer? 4. What are you looking for in this job? 5. How did you solve a problem you faced? 6. What are your career goals? After the questions, you should provide detailed feedback with examples to the interviewee on what they did well in every question and what they need to improve.`;
 
 // Set IDs for each 
 let MAXID = 100000;
@@ -287,7 +286,11 @@ class Model1{
         let builtInText = {role:'system', content:conversationStart};
         let restHist = this.historyToText(this.index);
         console.log(`The current summary is:\n ${this.summaries}`);
-        return [builtInText, {role: 'system', content: 'You and the user have previously talked about ' + this.summaries.join(' ')}].concat(restHist);
+        if (this.summaries.length === 0) {
+            return [builtInText].concat(restHist);
+        } else {
+            return [builtInText, {role: 'system', content: 'You and the user have previously talked about ' + this.summaries.join(' ')}].concat(restHist);
+        }
         
     }
 }
@@ -424,7 +427,11 @@ Perviously was discussing`,
         let builtInText = {role:'system', content:conversationStart};
         let restHist = this.historyToText(this.index);
         console.log([{role: 'system', content : this.currentSummary}])
-        return [builtInText, {role: 'system', content: this.currentSummary}].concat(restHist);
+        if (this.currentSummary==="") {
+            return [builtInText].concat(restHist);
+        } else {
+            return [builtInText, {role: 'system', content: this.currentSummary}].concat(restHist);
+        }
     }
 }
 

@@ -1,6 +1,6 @@
 const frm1 = document.getElementById("HumanForm1");
 const frm2 = document.getElementById("HumanForm2");
-const frm3 = document.getElementById("HumanForm3");
+// const frm3 = document.getElementById("HumanForm3");
 const frm4 = document.getElementById("HumanForm4");
 
 const models = [1,2,4];
@@ -71,7 +71,7 @@ const formHandler = (e) => {
 // Post human input to backend, to be proccessed by GPT-3 
 frm1.addEventListener("submit", formHandler);
 frm2.addEventListener("submit", formHandler);
-frm3.addEventListener("submit", formHandler);
+// frm3.addEventListener("submit", formHandler);
 frm4.addEventListener("submit", formHandler);
 
 // Get history data to show on the front end
