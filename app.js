@@ -12,21 +12,20 @@ const {get_encoding} = require('@dqbd/tiktoken')
 
 let lock = new AsyncLock();
 
+let temp_summeriser = 0;
+let temp_chatter = 0.7;
 /*
  * TODO:
  - 1. Manually set the shorter memory limitation for all of the models into the same limit by token  -> for efficient evaluation purposes
- * 2. Setting the system prompt
- * 3. Prepare a lot of different scripts
- * 4. Do both of the experiments
- * 5. Set standards for the evaluations 
- * 6. Experiment and log results
- * 7. Model-3(optional)
+ * 2. Setting the system prompt, Prepare a lot of different scripts
+ * 3. Do both of the experiments
+ * 4. Set standards for the evaluations 
+ * 5. Experiment and log results
+ * 6. Model-3(optional)
 */
+const task = `Pretend that you are a interviewer for Google Talent Recruitment team, you are going to interview a candidate for Software Engineering Summer Internship based in London today.`
 
-const conversationStart = `Your name is Melanie, you are an encouraging language teacher who is going to help the user practice speaking in their target language. Your teaching should focus on the following principles: 
-1. You will need to ask the student\'s target language, their level of the language, and topics they want to learn about before setting teaching schedules and teaching them.
-2. You will give them an detailed outline of topics to learn at the start.
-3. Your language course is focusing on helping people practice their language in different topics and scenarios, you will need to talk to them in English too for teaching, and to point out their grammar mistakes for them as well as recommend them some relevant vocabulary and phrases to use.  In the following dialogue, you need to stick to this character and provide high quality language lessons to the student. The lessons should be interactive and practical, and always ask students whether they process the information well.`;
+const conversationStart = `You are Luck, a interviewer for Google Talent Recruitment team, you are going to interview a candidate for Software Engineering Summer Internship based in London today. The following is a list of questions that you need to ask the candidate: 1. Can you tell me your name, and how should I call you? 2. Can you talk about yourself a bit? 3. What programming language do you prefer? 3. What are you looking for in this job 4. How did you solve a problem you faced. 5. What are your career goals? 6. Can you tell me a project you worked on before? Apart from these questions, should come up with 10 more questions to ask the candidate relevant to this interview.After the questions, You should tell the interviewee about what they did good and bad in details and teach them how to improve.`;
 
 // Set IDs for each 
 let MAXID = 100000;
@@ -259,7 +258,7 @@ class Model1{
 
         Summary 3:
         The user and the assistant talked about`,
-                temperature: 0.7,
+                temperature: temp_summeriser,
                 max_tokens: 256,
                 top_p: 1,
                 frequency_penalty: 0,
@@ -271,7 +270,7 @@ class Model1{
                 // Update the starting index of the history which haven't summerised
                 this.index = this.counter * this.batchSize;
         
-                console.log('summary for the text: ' + this.summaries[this.summaries.length-1]);
+                console.log('summary for the text for model 1: ' + this.summaries[this.summaries.length-1]);
                 console.log('current index is: ' + this.index);
 
                 if (this.listory.length >= (this.index + this.batchSize + this.buffer)){
@@ -356,7 +355,7 @@ class Model2{
             // Update the starting index of the history which haven't summerised
             this.index = this.counter * this.batchSize;
     
-            console.log('summary for the text: ' + this.currentSummary);
+            console.log('summary for the text for model 2 ' + this.currentSummary);
             console.log('current index is: ' + this.index);
 
             if (this.listory.length >= (this.index + this.batchSize + this.buffer)){
@@ -393,7 +392,7 @@ ${this.historyToText(this.index, (this.index + this.batchSize), true)}
 
 Summary 3:
 Perviously was discussing`,
-                temperature: 0.7,
+                temperature: temp_summeriser,
                 max_tokens: 256,
                 top_p: 1,
                 frequency_penalty: 0,
@@ -409,8 +408,8 @@ Perviously was discussing`,
                     let B = this.currentSummary;
                     openai.createChatCompletion({
                         model: "gpt-3.5-turbo",
-                        messages: [{role: 'user', content: `The user and the assistant previously talked about ${B}. They also talked about ${A}.\n Please summerise the given information above.`}],
-                        temperature: 0.9,
+                        messages: [{role: 'user', content: `The user and the assistant previously talked about ${B}. They also talked about ${A}.\n Please summerise the given information above in details.`}],
+                        temperature: temp_summeriser,
                         max_tokens: 300,
                     }).then(gpt =>{
                         this.currentSummary = gpt.data.choices[0].message.content;
@@ -425,7 +424,7 @@ Perviously was discussing`,
         let builtInText = {role:'system', content:conversationStart};
         let restHist = this.historyToText(this.index);
         console.log([{role: 'system', content : this.currentSummary}])
-        return [builtInText, {role: 'system',content : this.currentSummary}].concat(restHist);
+        return [builtInText, {role: 'system', content: this.currentSummary}].concat(restHist);
     }
 }
 
@@ -503,7 +502,7 @@ app.post("/send", (req, res) => {
     openai.createChatCompletion({
         model: "gpt-3.5-turbo",
         messages:croppedPrompt.prompt,
-        temperature: 0.9,
+        temperature: temp_chatter,
         max_tokens: 500,
     }).then(gpt => {
         conversation[req.query.model].push("assistant", gpt.data.choices[0].message.content, gpt.data.created);
