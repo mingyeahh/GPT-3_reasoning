@@ -3,8 +3,21 @@ const frm2 = document.getElementById("HumanForm2");
 // const frm3 = document.getElementById("HumanForm3");
 const frm4 = document.getElementById("HumanForm4");
 
+const tc = document.getElementById("turn-counter");
+let activeModel = 1;
+
 const models = [1,2,4];
 let model_counters = {1: 0, 2: 0, 4: 0};
+
+// Keeping track of the active model
+let pills = document.querySelectorAll('button[data-bs-toggle="pill"]');
+for (let p of pills) {
+    p.addEventListener('shown.bs.tab', (e) => {
+        let modelNumber = e.target.getAttribute('data-modelNo');
+        activeModel = modelNumber;
+        tc.innerText = model_counters[modelNumber];
+    })
+}
 
 const formHandler = (e) => {
     e.preventDefault();
@@ -42,7 +55,7 @@ const formHandler = (e) => {
             throw new Error();
         }
     }).then(data => {
-        console.log(data);
+        // console.log(data);
         let elem = document.getElementById(`conv-model${modelNumber}`);
 
         elem.innerHTML += `<span class="title">Human:</span> <span id="${modelNumber}-${model_counters[modelNumber]}">${hinp}</span>
@@ -55,7 +68,7 @@ const formHandler = (e) => {
             let previousText = cutoffPoint.innerHTML;
             let markers = document.getElementsByClassName(`marker-${modelNumber}`)
             for (let i of markers) {
-                console.log(i);
+                // console.log(i);
                 i.classList.add("hidden");
             }
             cutoffPoint.innerHTML = previousText.slice(0,data.cutoff[1]) + `<span class="marker-${modelNumber}">` + previousText.slice(data.cutoff[1]) + '</span>';
@@ -64,6 +77,7 @@ const formHandler = (e) => {
         elem.innerHTML += `<span class="title">AI:</span> <span id="${modelNumber}-${model_counters[modelNumber]}">${data.text}</span>
         <br>`;
         model_counters[modelNumber]++;
+        if (modelNumber === activeModel) tc.innerText = model_counters[modelNumber];
         elem.scrollTop = elem.scrollHeight;
     }).catch(console.error);
 };
@@ -89,7 +103,7 @@ window.addEventListener("load", (e) => {
                 throw new Error();
             }
         }).then(data => {
-            console.log(data);
+            // console.log(data);
             // document.getElementById('conv-model1').innerHTML = '';
             data.forEach((i) =>{
                 let newLine = `<span class="title">${i.sender ==="user" ? "Human" : "AI"}:</span> <span id="${m}-${model_counters[m]}">${i.msg}</span>
@@ -98,6 +112,8 @@ window.addEventListener("load", (e) => {
                 let elem = document.getElementById(`conv-model${m}`)
                 elem.innerHTML += newLine;
                 elem.scrollTop = elem.scrollHeight;
+                // console.log(model_counters[m])
+                if (m === activeModel) tc.innerText = model_counters[m];
             });
         }).catch(console.error);
     })

@@ -16,22 +16,26 @@
     </div>
 
     <div class="container" id="chatbot">
-        <ul class="nav nav-pills mb-3" id="pills-tab" role="tablist">
-            <li class="nav-item" role="presentation">
+
+        <ul class="nav nav-pills mb-3 d-flex" id="pills-tab" role="tablist">
+            <li class="nav-item p-2" role="presentation">
                 <button class="nav-link active" id="pills-model1-tab" data-bs-toggle="pill" data-bs-target="#pills-model1"
-                    type="button" role="tab" aria-controls="pills-model1" aria-selected="true">Model 1</button>
+                    type="button" role="tab" aria-controls="pills-model1" aria-selected="true" data-modelNo="1">Model 1</button>
             </li>
-            <li class="nav-item" role="presentation">
+            <li class="nav-item p-2" role="presentation">
                 <button class="nav-link" id="pills-model2-tab" data-bs-toggle="pill" data-bs-target="#pills-model2"
-                    type="button" role="tab" aria-controls="pills-model2" aria-selected="false">Model 2</button>
+                    type="button" role="tab" aria-controls="pills-model2" aria-selected="false" data-modelNo="2">Model 2</button>
             </li>
             <!-- <li class="nav-item" role="presentation">
                 <button class="nav-link" id="pills-model3-tab" data-bs-toggle="pill" data-bs-target="#pills-model3"
-                    type="button" role="tab" aria-controls="pills-model3" aria-selected="false">Model 3</button>
+                    type="button" role="tab" aria-controls="pills-model3" aria-selected="false" data-modelNo="3">Model 3</button>
             </li> -->
-            <li class="nav-item" role="presentation">
+            <li class="nav-item p-2" role="presentation">
                 <button class="nav-link" id="pills-model4-tab" data-bs-toggle="pill" data-bs-target="#pills-model4"
-                    type="button" role="tab" aria-controls="pills-model4" aria-selected="false">ChatGPT</button>
+                    type="button" role="tab" aria-controls="pills-model4" aria-selected="false" data-modelNo="4">ChatGPT</button>
+            </li>
+            <li id="turn" class="ms-auto p-2">
+                <button disabled class="btn btn-outline-primary"><span id="turn-counter">X</span> Turns</button>
             </li>
 
         </ul>
