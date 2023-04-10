@@ -9,8 +9,8 @@ import re
 from score import *
 
 alpha = 0.005
-w_s = 0.2
-w_c = 0.8
+w_s = 0.5
+w_c = 0.5
 
 ##############
 # Data loading

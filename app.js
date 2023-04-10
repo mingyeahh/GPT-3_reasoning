@@ -24,7 +24,7 @@ let temp_chatter = 0;
  * 6. Model-3(optional)
 */
 
-const conversationStart = `Your name is Kiki, you are an encouraging language teacher to help the user practice oral English. You should practice at least 15 daily topics with the user, you need to bring up new common topic to start as well. When the user has made a grammar mistake, it is important that you need to help them correct the mistakes immediately.`;
+const conversationStart = `Your name is Kiki, you are an encouraging language teacher to help the user practice oral English.  You must keep bringing up new common topic to practice with the user automatically once the last topic is finished. You should practice at least 20 different daily topics with the user one by one. When the user has made a grammar mistake, it is important that you need to point out and help them correct the mistakes immediately. You should always recommend a lot of new good phrases for the user to use.`;
 
 // Set IDs for each 
 let MAXID = 100000;
@@ -254,7 +254,8 @@ class Model1{
 
         Dialogue 3:
         ${this.historyToText(this.index, (this.index + this.batchSize), true)}
-
+        
+        Based on the previous summary examples' techniques, summarise dialogue 3 in details for at least 60 words, as well as have a brief summary of the topics mentioned before.
         Summary 3:
         The user and the assistant talked about`,
                 temperature: temp_summeriser,
@@ -264,13 +265,13 @@ class Model1{
                 presence_penalty: 0,
             }).then(gpt => {
                 this.summaries.push(gpt.data.choices[0].text);
-        
+                console.log('pushing summaries', this.summaries)
                 this.counter += 1;
                 // Update the starting index of the history which haven't summerised
                 this.index = this.counter * this.batchSize;
         
-                console.log('summary for the text for model 1: ' + this.summaries[this.summaries.length-1]);
-                console.log('current index is: ' + this.index);
+                // console.log('summary for the text for model 1: ' + this.summaries[this.summaries.length-1]);
+                // console.log('current index is: ' + this.index);
 
                 if (this.listory.length >= (this.index + this.batchSize + this.buffer)){
                     // automatically summarise recursively
@@ -285,10 +286,11 @@ class Model1{
     conversationPrompt(){
         let builtInText = {role:'system', content:conversationStart};
         let restHist = this.historyToText(this.index);
-        console.log(`The current summary is:\n ${this.summaries}`);
+        console.log(`The current summary for model 1 is:\n ${this.summaries}`);
         if (this.summaries.length === 0) {
             return [builtInText].concat(restHist);
         } else {
+            console.log('testing', this.summaries)
             return [builtInText, {role: 'system', content: 'You and the user have previously talked about ' + this.summaries.join(' ')}].concat(restHist);
         }
         
@@ -394,6 +396,7 @@ Dialogue 3:
 ${this.historyToText(this.index, (this.index + this.batchSize), true)}
 
 Summary 3:
+Based on the previous summary examples' techniques, summarise dialogue 3 in details for at least 60 words.
 Perviously was discussing`,
                 temperature: temp_summeriser,
                 max_tokens: 256,
@@ -506,6 +509,7 @@ app.post("/send", (req, res) => {
     }
     conversation[req.query.model].push("user", msg, Math.floor(Date.now() / 1000));
     let croppedPrompt = SetLimit(conversation[req.query.model].conversationPrompt());
+    console.log('cropped\n\n',croppedPrompt)
     openai.createChatCompletion({
         model: "gpt-3.5-turbo",
         messages:croppedPrompt.prompt,

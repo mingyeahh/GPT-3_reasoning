@@ -58,7 +58,7 @@ const formHandler = (e) => {
         // console.log(data);
         let elem = document.getElementById(`conv-model${modelNumber}`);
 
-        elem.innerHTML += `<span class="title">Human:</span> <span id="${modelNumber}-${model_counters[modelNumber]}">${hinp}</span>
+        elem.innerHTML += `<span class="title">Human:</span> <span id="${modelNumber}-${model_counters[modelNumber]}" style="color: darkblue">${hinp}</span>
         <br>`;
         model_counters[modelNumber]++;
 
@@ -77,7 +77,7 @@ const formHandler = (e) => {
         elem.innerHTML += `<span class="title">AI:</span> <span id="${modelNumber}-${model_counters[modelNumber]}">${data.text}</span>
         <br>`;
         model_counters[modelNumber]++;
-        if (modelNumber === activeModel) tc.innerText = model_counters[modelNumber];
+        if (modelNumber == activeModel) tc.innerText = model_counters[modelNumber];
         elem.scrollTop = elem.scrollHeight;
     }).catch(console.error);
 };
@@ -113,8 +113,8 @@ window.addEventListener("load", (e) => {
                 elem.innerHTML += newLine;
                 elem.scrollTop = elem.scrollHeight;
                 // console.log(model_counters[m])
-                if (m === activeModel) tc.innerText = model_counters[m];
             });
+            if (m == activeModel) tc.innerText = model_counters[m];
         }).catch(console.error);
     })
 });
