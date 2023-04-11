@@ -24,7 +24,25 @@ let temp_chatter = 0;
  * 6. Model-3(optional)
 */
 
-const conversationStart = `Your name is Kiki, you are an encouraging language teacher to help the user practice oral English.  You must keep bringing up new common topic to practice with the user automatically once the last topic is finished. You should practice at least 20 different daily topics with the user one by one. When the user has made a grammar mistake, it is important that you need to point out and help them correct the mistakes immediately. You should always recommend a lot of new good phrases for the user to use.`;
+const isDialogue = true;
+const batchSize = 20;
+const bufferSize = 10;
+const conversationStart = `You are an encouraging language teacher, your goal is to help users practice their oral English skills. To achieve this, you must automatically introduce new and common topics to practice with the user as soon as the previous one is finished. You should aim to cover at least 30 different daily topics with the user one by one. Whenever the user makes a grammar mistake, it's crucial that you point it out and help them correct it immediately. Additionally, you should always recommend new phrases for the user to use and improve their language proficiency. Here are some examples:
+
+AI: Let’s talk about ‘Travel’. Please talked about a place you have been to recently. 
+Human: Sure! I go to Cambridge last week, it was nice and pretty. I went punt with my cousins. There are a lot of tourists there! I enjoy my time there in Cambridge very much! Every thing are beautiful! 
+AI: Great to hear that you had a good time in Cambridge last week! However, let me help you with your grammar mistakes. Instead of saying "go to", you should say "went to" since you are referring to a past event. Additionally, you should say "Everything was beautiful" instead of "Every thing are beautiful". It's great that you went on a punt with your cousins and enjoyed your time in Cambridge! What other cities have you visited in the past?
+Human: I also went to Tokyo. It is such a big cities! I ate a lot of sushis there! They are so fresh and yummy!
+AI: Wow, it sounds like you had a great time in Tokyo too! Just a few corrections: instead of saying "big cities", you should say "a big city" since Tokyo is a singular noun. Also, instead of saying "sushis", it would be better to say "sushi", since "sushi" is already a plural noun.
+I'm glad to hear that you enjoyed the sushi there. Now, let’s move on to another topic: ‘Family’. Can you tell me something about your family?
+Human: Sure! There are 4 people in my family, my parents, my brother and I, we love each other.
+AI: Great to hear that you have a loving family! Just a small correction, instead of saying "my brother and I", it would be better to say "my brother and me" since "me" is the object of the verb "love". So the corrected sentence would be:
+"Sure! There are 4 people in my family - my parents, my brother, and me. We love each other."
+That's wonderful to hear! What activities do you enjoy doing together as a family?
+Human: We often go travelling as a family together! Also, when everyone’s at home, we often cook together as well!
+AI: That's great to hear! Spending quality time together as a family is very important. Let’s switch to another topic: ’Sports’ Do you enjoy doing sports?
+Now let’s start your lesson!
+`;
 
 // Set IDs for each 
 let MAXID = 100000;
@@ -235,29 +253,11 @@ class Model1{
             shots_count: 2,
         };
 
-        TalkToPython(batch, (resp) => {
+        let doSummary = (prompt) => {
+            console.log(prompt);
             openai2.createCompletion({
                 model: "text-davinci-003",
-                prompt:
-
-        `Dialogue 1: 
-        ${resp[0]['dialogue']}
-
-        Summary 1:
-        ${resp[0]['summary']}
-        
-        Dialogue 2:
-        ${resp[1]['dialogue']}
-
-        Summary 2:
-        ${resp[1]['summary']}
-
-        Dialogue 3:
-        ${this.historyToText(this.index, (this.index + this.batchSize), true)}
-        
-        Based on the previous summary examples' techniques, summarise dialogue 3 in details for at least 60 words, as well as have a brief summary of the topics mentioned before.
-        Summary 3:
-        The user and the assistant talked about`,
+                prompt: prompt,
                 temperature: temp_summeriser,
                 max_tokens: 256,
                 top_p: 1,
@@ -269,9 +269,6 @@ class Model1{
                 this.counter += 1;
                 // Update the starting index of the history which haven't summerised
                 this.index = this.counter * this.batchSize;
-        
-                // console.log('summary for the text for model 1: ' + this.summaries[this.summaries.length-1]);
-                // console.log('current index is: ' + this.index);
 
                 if (this.listory.length >= (this.index + this.batchSize + this.buffer)){
                     // automatically summarise recursively
@@ -280,7 +277,32 @@ class Model1{
                     cb();
                 }
             });
-        });
+        }
+
+        if (isDialogue) {
+            TalkToPython(batch, (resp) => {
+                doSummary(`Dialogue 1: ${resp[0]['dialogue']}
+Summary 1:
+${resp[0]['summary']}
+
+Dialogue 2:
+${resp[1]['dialogue']}
+
+Summary 2:
+${resp[1]['summary']}
+
+Dialogue 3:
+${this.historyToText(this.index, (this.index + this.batchSize), true)}
+
+Based on the previous summary examples' techniques, summarise Dialogue 3 in detail for at least 30 words, then give a list of topics what the user and the assistant talked about.
+Summary 3:
+The conversation has already started. The user and the assistant talked about`);
+            });
+        } else {
+            doSummary(`${this.historyToText(this.index, (this.index + this.batchSize), true)}
+            
+            Please summarise what the assistant has said.`); 
+        }
     }
 
     conversationPrompt(){
@@ -291,7 +313,11 @@ class Model1{
             return [builtInText].concat(restHist);
         } else {
             console.log('testing', this.summaries)
-            return [builtInText, {role: 'system', content: 'You and the user have previously talked about ' + this.summaries.join(' ')}].concat(restHist);
+            return [builtInText, {role: 'system', content: (
+                (isDialogue) ?
+                'The conversation has already started. The user and the assistant talked about' + this.summaries.join(' They also talked about') :
+                this.summaries.join(' ')
+            )}].concat(restHist);
         }
         
     }
@@ -301,8 +327,8 @@ class Model1{
 
 // Prompt will be a constant amount, it'll be the hierachical summarisation of the past summaries.
 class Model2{
-    constructor(index, buffer, batchSize, histPath){
-        this.index = index;
+    constructor(histPath, batchSize=10, buffer=10){
+        this.index = 0;
         this.buffer = buffer;
         this.batchSize = batchSize;
         this.histPath = histPath;
@@ -375,29 +401,11 @@ class Model2{
             batch: this.historyBatch(this.index, (this.index + this.batchSize)),
             shots_count: 2,
         };
-        
-        TalkToPython(batch, (resp) => {
+
+        let doSummary = (prompt) => {
             openai2.createCompletion({
                 model: "text-davinci-003",
-                prompt:
-`Dialogue 1: 
-${resp[0]['dialogue']}
-
-Summary 1:
-${resp[0]['summary']}
-
-Dialogue 2:
-${resp[1]['dialogue']}
-
-Summary 2:
-${resp[1]['summary']}
-
-Dialogue 3:
-${this.historyToText(this.index, (this.index + this.batchSize), true)}
-
-Summary 3:
-Based on the previous summary examples' techniques, summarise dialogue 3 in details for at least 60 words.
-Perviously was discussing`,
+                prompt: prompt,
                 temperature: temp_summeriser,
                 max_tokens: 256,
                 top_p: 1,
@@ -414,7 +422,11 @@ Perviously was discussing`,
                     let B = this.currentSummary;
                     openai.createChatCompletion({
                         model: "gpt-3.5-turbo",
-                        messages: [{role: 'user', content: `The user and the assistant previously talked about ${B}. They also talked about ${A}.\n Please summerise the given information above in details.`}],
+                        messages: [{role: 'user', content: (
+                            (isDialogue) ?
+                            `The user and the assistant previously talked about ${B} They also talked about ${A}\nPlease summarise the given information above in detail.` :
+                            `${B}\n${A}\nPlease summarise the information given above in detail.`
+                        )}],
                         temperature: temp_summeriser,
                         max_tokens: 300,
                     }).then(gpt =>{
@@ -423,7 +435,34 @@ Perviously was discussing`,
                     });
                 }
             });
-        });
+        }
+        
+        if (isDialogue) {
+            TalkToPython(batch, (resp) => {
+                doSummary(`Dialogue 1: 
+                ${resp[0]['dialogue']}
+                
+                Summary 1:
+                ${resp[0]['summary']}
+                
+                Dialogue 2:
+                ${resp[1]['dialogue']}
+                
+                Summary 2:
+                ${resp[1]['summary']}
+                
+                Dialogue 3:
+                ${this.historyToText(this.index, (this.index + this.batchSize), true)}
+                
+                Summary 3:
+                Based on the previous summary examples' techniques, summarise dialogue 3 in details for at least 60 words.
+                Perviously was discussing`);
+            });
+        } else {
+            doSummary(`${this.historyToText(this.index, (this.index + this.batchSize), true)}
+            
+            Please summarise what the assistant has said.`); // TODO
+        }
     }
     
     conversationPrompt(){
@@ -478,9 +517,9 @@ class Playground{
     }
 }
 
-let conversation1 = new Model1("./history1.json");
+let conversation1 = new Model1("./history1.json", batchSize, bufferSize);
 
-let conversation2 = new Model2(0, 10, 10, "./history2.json");
+let conversation2 = new Model2("./history2.json", batchSize, bufferSize);
 
 
 

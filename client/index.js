@@ -58,7 +58,7 @@ const formHandler = (e) => {
         // console.log(data);
         let elem = document.getElementById(`conv-model${modelNumber}`);
 
-        elem.innerHTML += `<span class="title">Human:</span> <span id="${modelNumber}-${model_counters[modelNumber]}" style="color: darkblue">${hinp}</span>
+        elem.innerHTML += `<span class="title">Human:</span> <span id="${modelNumber}-${model_counters[modelNumber]}" style="color: darkblue">${hinp.replace(/(?:\r\n|\r|\n)/g, '<br>')}</span>
         <br>`;
         model_counters[modelNumber]++;
 
@@ -66,15 +66,17 @@ const formHandler = (e) => {
             let messageID = `${modelNumber}-${model_counters[modelNumber] - data.cutoff[0]}`;
             let cutoffPoint = document.getElementById(messageID);
             let previousText = cutoffPoint.innerHTML;
+            previousText = previousText.replace(/(?:<span class="[^"]+">|<\/span>)/g, '').replace(/<br>/g, '\n');
             let markers = document.getElementsByClassName(`marker-${modelNumber}`)
             for (let i of markers) {
                 // console.log(i);
                 i.classList.add("hidden");
             }
-            cutoffPoint.innerHTML = previousText.slice(0,data.cutoff[1]) + `<span class="marker-${modelNumber}">` + previousText.slice(data.cutoff[1]) + '</span>';
+            let newText = previousText.slice(0,data.cutoff[1]) + `<span class="marker-${modelNumber}">` + previousText.slice(data.cutoff[1]) + '</span>';
+            cutoffPoint.innerHTML = newText.replace(/(?:\r\n|\r|\n)/g, '<br>');
         }
 
-        elem.innerHTML += `<span class="title">AI:</span> <span id="${modelNumber}-${model_counters[modelNumber]}">${data.text}</span>
+        elem.innerHTML += `<span class="title">AI:</span> <span id="${modelNumber}-${model_counters[modelNumber]}">${data.text.replace(/(?:\r\n|\r|\n)/g, '<br>')}</span>
         <br>`;
         model_counters[modelNumber]++;
         if (modelNumber == activeModel) tc.innerText = model_counters[modelNumber];
@@ -106,7 +108,7 @@ window.addEventListener("load", (e) => {
             // console.log(data);
             // document.getElementById('conv-model1').innerHTML = '';
             data.forEach((i) =>{
-                let newLine = `<span class="title">${i.sender ==="user" ? "Human" : "AI"}:</span> <span id="${m}-${model_counters[m]}">${i.msg}</span>
+                let newLine = `<span class="title">${i.sender ==="user" ? "Human" : "AI"}:</span> <span id="${m}-${model_counters[m]}">${i.msg.replace(/(?:\r\n|\r|\n)/g, '<br>')}</span>
                             <br>`;
                 model_counters[m]++;
                 let elem = document.getElementById(`conv-model${m}`)
