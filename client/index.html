@@ -20,11 +20,11 @@
         <ul class="nav nav-pills mb-3 d-flex" id="pills-tab" role="tablist">
             <li class="nav-item p-2" role="presentation">
                 <button class="nav-link active" id="pills-model1-tab" data-bs-toggle="pill" data-bs-target="#pills-model1"
-                    type="button" role="tab" aria-controls="pills-model1" aria-selected="true" data-modelNo="1">Model 1</button>
+                    type="button" role="tab" aria-controls="pills-model1" aria-selected="true" data-modelNo="1">Chunk Model</button>
             </li>
             <li class="nav-item p-2" role="presentation">
                 <button class="nav-link" id="pills-model2-tab" data-bs-toggle="pill" data-bs-target="#pills-model2"
-                    type="button" role="tab" aria-controls="pills-model2" aria-selected="false" data-modelNo="2">Model 2</button>
+                    type="button" role="tab" aria-controls="pills-model2" aria-selected="false" data-modelNo="2">Hierarchical Model</button>
             </li>
             <!-- <li class="nav-item" role="presentation">
                 <button class="nav-link" id="pills-model3-tab" data-bs-toggle="pill" data-bs-target="#pills-model3"
@@ -43,7 +43,7 @@
             <div class="tab-pane fade show active" id="pills-model1" role="tabpanel" aria-labelledby="pills-model1-tab"
                 tabindex="0">
                 <div id="content">
-                    <p>This model applies OpenAI GPT-3 API to get response from the language model by user input. It takes all the past conversation in the prompt. Compared to the version in OpenAI playground, this model <b>divides the past conversations into different batches and use GPT-3 summarisation function to summarise each batch, and pass all the batch summaries to the prompt of the AI.</b> </p>
+                    <p>This model applies OpenAI gpt-3.5-turbo model as chatter. Compared to ChatGPT version, this model divides the past conversations into continuous batches by the same turn count, and summarise each batch with GPT-3. Each summary will be concatenated to the prompt of the chatbot model. </p>
                     <p id="conv-model1" class=" conversation border border-4 rounded p-4">
                         The following is a conversation with an AI assistant. The assistant is helpful, creative, clever, and very friendly.
                         <br>
@@ -61,12 +61,11 @@
             </div>
             <div class="tab-pane fade" id="pills-model2" role="tabpanel" aria-labelledby="pills-model2-tab" tabindex="0">
                 <div id="content">
-                    <p></p>
+                    <p>This model applies OpenAI gpt-3.5-turbo model as chatter. Compared to the chunk model version, this model uses a hierarchical summarisation approach to combine the two chunk summaries into one, and put the combined summary to the prompt of the chatbot model.</p>
                     <p id="conv-model2" class=" conversation border border-4 rounded p-4">
-                        The following is a conversation with an AI assistant. The assistant is helpful, creative, clever, and very
-                        friendly.
+                        The following is a conversation with an AI assistant. The assistant is helpful, creative, clever, and very friendly.
                         <br>
-                        <span class="title">AI:</span> Hello!
+                        <span class="title">AI:</span> Hi!
                         <br>
                     </p>
                     <form id="HumanForm2" data-modelNo="2">
@@ -100,12 +99,11 @@
             </div> -->
             <div class="tab-pane fade" id="pills-model4" role="tabpanel" aria-labelledby="pills-model4-tab" tabindex="0">
                 <div id="content">
-                    <p>This is the GPT-3.5-turbo model, also known as ChatGPT. This model takes all previous dialogue as input and subsequently generates responses. However, when the memory capacity of the model is reached, it may lose some of the input information. During a conversation, when a sentence is highlighted, it indicates that some information has been lost and that the <span style="background-color:	#d8bfd8;">highlighted sentence </span> represents the first sentence that the model currently has in its memory.</p>
+                    <p>This is the gpt-3.5-turbo model, also known as ChatGPT. This model takes all previous dialogue as input and subsequently generates responses. However, when the memory capacity of the model is reached, it may lose some of the input information. During a conversation, when a sentence is highlighted, it indicates that some information has been lost and that the <span style="background-color:	#d8bfd8;">highlighted sentence </span> represents the first sentence that the model currently has in its memory.</p>
                     <p id="conv-model4" class=" conversation border border-4 rounded p-4">
-                        The following is a conversation with an AI assistant. The assistant is helpful, creative, clever, and very
-                        friendly.
+                        The following is a conversation with an AI assistant. The assistant is helpful, creative, clever, and very friendly.
                         <br>
-                        <span class="title">AI:</span> Hello!
+                        <span class="title">AI:</span> Hi!
                         <br>
 
                     </p>

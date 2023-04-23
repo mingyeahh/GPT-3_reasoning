@@ -9,40 +9,25 @@ const app = express();
 app.use(express.json()); // parse JSON requests
 app.use(express.static("client"));
 const {get_encoding} = require('@dqbd/tiktoken')
-
 let lock = new AsyncLock();
 
+// Parameters
 let temp_summeriser = 0;
-let temp_chatter = 0;
+let temp_chatter = 0.7;
+const isDialogue = true;
+const batchSize = 10;
+const bufferSize = 10;
 /*
  * TODO:
  - 1. Manually set the shorter memory limitation for all of the models into the same limit by token  -> for efficient evaluation purposes
- * 2. Setting the system prompt, Prepare a lot of different scripts
- * 3. Do both of the experiments
- * 4. Set standards for the evaluations 
- * 5. Experiment and log results
+ - 2. Setting the system prompt, Prepare a lot of different scripts
+ - 3. Do both of the experiments
+ - 4. Set standards for the evaluations 
+ - 5. Experiment and log results
  * 6. Model-3(optional)
 */
 
-const isDialogue = true;
-const batchSize = 20;
-const bufferSize = 10;
-const conversationStart = `You are an encouraging language teacher, your goal is to help users practice their oral English skills. To achieve this, you must automatically introduce new and common topics to practice with the user as soon as the previous one is finished. You should aim to cover at least 30 different daily topics with the user one by one. Whenever the user makes a grammar mistake, it's crucial that you point it out and help them correct it immediately. Additionally, you should always recommend new phrases for the user to use and improve their language proficiency. Here are some examples:
-
-AI: Let’s talk about ‘Travel’. Please talked about a place you have been to recently. 
-Human: Sure! I go to Cambridge last week, it was nice and pretty. I went punt with my cousins. There are a lot of tourists there! I enjoy my time there in Cambridge very much! Every thing are beautiful! 
-AI: Great to hear that you had a good time in Cambridge last week! However, let me help you with your grammar mistakes. Instead of saying "go to", you should say "went to" since you are referring to a past event. Additionally, you should say "Everything was beautiful" instead of "Every thing are beautiful". It's great that you went on a punt with your cousins and enjoyed your time in Cambridge! What other cities have you visited in the past?
-Human: I also went to Tokyo. It is such a big cities! I ate a lot of sushis there! They are so fresh and yummy!
-AI: Wow, it sounds like you had a great time in Tokyo too! Just a few corrections: instead of saying "big cities", you should say "a big city" since Tokyo is a singular noun. Also, instead of saying "sushis", it would be better to say "sushi", since "sushi" is already a plural noun.
-I'm glad to hear that you enjoyed the sushi there. Now, let’s move on to another topic: ‘Family’. Can you tell me something about your family?
-Human: Sure! There are 4 people in my family, my parents, my brother and I, we love each other.
-AI: Great to hear that you have a loving family! Just a small correction, instead of saying "my brother and I", it would be better to say "my brother and me" since "me" is the object of the verb "love". So the corrected sentence would be:
-"Sure! There are 4 people in my family - my parents, my brother, and me. We love each other."
-That's wonderful to hear! What activities do you enjoy doing together as a family?
-Human: We often go travelling as a family together! Also, when everyone’s at home, we often cook together as well!
-AI: That's great to hear! Spending quality time together as a family is very important. Let’s switch to another topic: ’Sports’ Do you enjoy doing sports?
-Now let’s start your lesson!
-`;
+const conversationStart = `You are an encouraging, helpful and friendly friend.`;
 
 // Set IDs for each 
 let MAXID = 100000;
@@ -90,7 +75,7 @@ const SetLimit = (prompt) => {
             let j = -remaining;
             let oded = encoded.slice(j);
             let croppedPrompt = [{role: prompt[i].role, content: new TextDecoder().decode(enc.decode(oded))}, ...prompt.slice(i+1)];
-            console.log(new TextDecoder().decode(enc.decode(oded)));
+            // console.log(new TextDecoder().decode(enc.decode(oded)));
             return {prompt: croppedPrompt, cutoff: [prompt[i].role==='system' ? -1 : prompt.length-i, new TextDecoder().decode(enc.decode(encoded.slice(0,j))).length]};
         }
     }
@@ -254,7 +239,7 @@ class Model1{
         };
 
         let doSummary = (prompt) => {
-            console.log(prompt);
+            // console.log(prompt);
             openai2.createCompletion({
                 model: "text-davinci-003",
                 prompt: prompt,
@@ -265,7 +250,7 @@ class Model1{
                 presence_penalty: 0,
             }).then(gpt => {
                 this.summaries.push(gpt.data.choices[0].text);
-                console.log('pushing summaries', this.summaries)
+                // console.log('pushing summaries', this.summaries)
                 this.counter += 1;
                 // Update the starting index of the history which haven't summerised
                 this.index = this.counter * this.batchSize;
@@ -274,6 +259,7 @@ class Model1{
                     // automatically summarise recursively
                     this.summariseHistory(cb);
                 } else {
+                    console.log('Finished summarising');
                     cb();
                 }
             });
@@ -294,9 +280,9 @@ ${resp[1]['summary']}
 Dialogue 3:
 ${this.historyToText(this.index, (this.index + this.batchSize), true)}
 
-Based on the previous summary examples' techniques, summarise Dialogue 3 in detail for at least 30 words, then give a list of topics what the user and the assistant talked about.
+Based on the previous summary examples' techniques, summarise Dialogue 3 in detail for at least 30 words, then give a list of topics what the user and the assistant talked about. Example: Topics discussed include: Travel, Food, Books.
 Summary 3:
-The conversation has already started. The user and the assistant talked about`);
+The user and the assistant talked about`);
             });
         } else {
             doSummary(`${this.historyToText(this.index, (this.index + this.batchSize), true)}
@@ -308,14 +294,18 @@ The conversation has already started. The user and the assistant talked about`);
     conversationPrompt(){
         let builtInText = {role:'system', content:conversationStart};
         let restHist = this.historyToText(this.index);
-        console.log(`The current summary for model 1 is:\n ${this.summaries}`);
+        // console.log(`The current summary for model 1 is:\n ${this.summaries}`);
         if (this.summaries.length === 0) {
             return [builtInText].concat(restHist);
         } else {
-            console.log('testing', this.summaries)
+            // console.log('Model 1', ([builtInText, {role: 'system', content: (
+            //     (isDialogue) ?
+            //     'The user and the assistant talked about' + this.summaries.join(' They also talked about') :
+            //     this.summaries.join(' ')
+            // )}].concat(restHist)))
             return [builtInText, {role: 'system', content: (
                 (isDialogue) ?
-                'The conversation has already started. The user and the assistant talked about' + this.summaries.join(' They also talked about') :
+                'The user and the assistant talked about' + this.summaries.join(' They also talked about') :
                 this.summaries.join(' ')
             )}].concat(restHist);
         }
@@ -386,8 +376,8 @@ class Model2{
             // Update the starting index of the history which haven't summerised
             this.index = this.counter * this.batchSize;
     
-            console.log('summary for the text for model 2 ' + this.currentSummary);
-            console.log('current index is: ' + this.index);
+            // console.log('summary for the text for model 2 ' + this.currentSummary);
+            // console.log('current index is: ' + this.index);
 
             if (this.listory.length >= (this.index + this.batchSize + this.buffer)){
                 // automatically summarise recursively
@@ -413,7 +403,7 @@ class Model2{
                 presence_penalty: 0,
             }).then(gpt => {
                 let A = gpt.data.choices[0].text;
-                console.log(`batch summary: ${A}`);
+                // console.log(`batch summary: ${A}`);
  
                 if (this.currentSummary === "") {
                     this.currentSummary = A;
@@ -424,7 +414,7 @@ class Model2{
                         model: "gpt-3.5-turbo",
                         messages: [{role: 'user', content: (
                             (isDialogue) ?
-                            `The user and the assistant previously talked about ${B} They also talked about ${A}\nPlease summarise the given information above in detail.` :
+                            `The user and the assistant previously talked about ${B} They also talked about${A}\nPlease summarise the given information above in detail but less than 200 words.Then give a give a list of topic they've talked about. Example: Topics discussed include: Travel, Food, Books.\n` :
                             `${B}\n${A}\nPlease summarise the information given above in detail.`
                         )}],
                         temperature: temp_summeriser,
@@ -454,33 +444,32 @@ class Model2{
                 Dialogue 3:
                 ${this.historyToText(this.index, (this.index + this.batchSize), true)}
                 
+                Based on the previous summary examples' techniques, summarise Dialogue 3 in details for at least 30 words. Then give a give a list of topic they've talked about. Example: Topics discussed include: Travel, Food, Books, climate change.\n
                 Summary 3:
-                Based on the previous summary examples' techniques, summarise dialogue 3 in details for at least 60 words.
-                Perviously was discussing`);
+                Previously was discussing`);
             });
         } else {
             doSummary(`${this.historyToText(this.index, (this.index + this.batchSize), true)}
             
-            Please summarise what the assistant has said.`); // TODO
+            Please summarise what the assistant has said.`); 
         }
     }
     
     conversationPrompt(){
         let builtInText = {role:'system', content:conversationStart};
         let restHist = this.historyToText(this.index);
-        console.log([{role: 'system', content : this.currentSummary}])
+        // console.log([{role: 'system', content : this.currentSummary}])
         if (this.currentSummary==="") {
+            // console.log("Current summary is empty");
             return [builtInText].concat(restHist);
         } else {
-            return [builtInText, {role: 'system', content: this.currentSummary}].concat(restHist);
+            console.log([builtInText, {role: 'system', content: `You and the user have previously talked about ${this.currentSummary}`}].concat(restHist));
+            return [builtInText, {role: 'system', content: `You and the user have previously talked about ${this.currentSummary}`}].concat(restHist);
         }
     }
 }
 
-// Prompt will be the 
-class Model3{
 
-}
 
 class Playground{
     constructor(histPath){
@@ -548,7 +537,7 @@ app.post("/send", (req, res) => {
     }
     conversation[req.query.model].push("user", msg, Math.floor(Date.now() / 1000));
     let croppedPrompt = SetLimit(conversation[req.query.model].conversationPrompt());
-    console.log('cropped\n\n',croppedPrompt)
+    console.log(croppedPrompt)
     openai.createChatCompletion({
         model: "gpt-3.5-turbo",
         messages:croppedPrompt.prompt,
@@ -580,14 +569,6 @@ app.get('/history', (req, res) =>{
     }
 });
 
-// // List of summerisation 
-// let list_discussed = ['Transformer']
-
-// const discussed_item = (list_discussed) =>{
-//     let temp = [...list_discussed];
-//     let last = temp.pop(); 
-//     let str = temp.join(', ');
-//     return `${str}, and ${last}`;
 
 
 module.exports = app;

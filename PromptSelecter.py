@@ -84,10 +84,10 @@ while True:
     for i in raw_dialogue:
         dialogue.append(i['msg'])
     dialogue_string = " ".join(dialogue)
-    vectorizer2 = TfidfVectorizer(ngram_range = (1, 1), token_pattern = r"\b((?:[A-Za-z]{2,}|I)(?:'[A-Za-z]+)?)\b", norm='l1')
-    tfidf2 = vectorizer2.fit_transform(np.array([dialogue_string]))
+    # vectorizer2 = TfidfVectorizer(ngram_range = (1, 1), token_pattern = r"\b((?:[A-Za-z]{2,}|I)(?:'[A-Za-z]+)?)\b", norm='l1')
+    tfidf2 = vectorizer.transform(np.array([dialogue_string]))
     scores2 = tfidf2.toarray()
-    tfi_df2 = pd.DataFrame(scores2, columns=vectorizer2.get_feature_names_out(), index=[0])
+    tfi_df2 = pd.DataFrame(scores2, columns=vectorizer.get_feature_names_out(), index=[0])
 
     # combine dfs using 
     tfi_df = pd.concat([tfi_df2, tfi_df1], axis=0).fillna(0.0)
