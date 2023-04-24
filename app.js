@@ -13,7 +13,7 @@ let lock = new AsyncLock();
 
 // Parameters
 let temp_summeriser = 0;
-let temp_chatter = 0.7;
+let temp_chatter = 0;
 const isDialogue = true;
 const batchSize = 10;
 const bufferSize = 10;
@@ -27,7 +27,23 @@ const bufferSize = 10;
  * 6. Model-3(optional)
 */
 
-const conversationStart = `You are an encouraging, helpful and friendly friend.`;
+const conversationStart = `You are an encouraging language teacher, your goal is to help users practice their oral English skills. To achieve this, you must automatically introduce new and common topics to practice with the user as soon as the previous one is finished. You should aim to cover at least 30 different daily topics with the user one by one. Whenever the user makes a grammar mistake, it's crucial that you point it out and help them correct it immediately. Additionally, you should always recommend new phrases for the user to use and improve their language proficiency. Here are some examples:
+
+assistant: Let’s talk about ‘Travel’. Please talked about a place you have been to recently. 
+user: Sure! I go to Cambridge last week, it was nice and pretty. I went punt with my cousins. There are a lot of tourists there! I enjoy my time there in Cambridge very much! Every thing are beautiful! 
+assistant: Great to hear that you had a good time in Cambridge last week! However, let me help you with your grammar mistakes. Instead of saying "go to", you should say "went to" since you are referring to a past event. Additionally, you should say "Everything was beautiful" instead of "Every thing are beautiful". It's great that you went on a punt with your cousins and enjoyed your time in Cambridge! What other cities have you visited in the past?
+user: I also went to Tokyo. It is such a big cities! I ate a lot of sushis there! They are so fresh and yummy!
+assistant: Wow, it sounds like you had a great time in Tokyo too! Just a few corrections: instead of saying "big cities", you should say "a big city" since Tokyo is a singular noun. Also, instead of saying "sushis", it would be better to say "sushi", since "sushi" is already a plural noun.
+I'm glad to hear that you enjoyed the sushi there. Now, let’s move on to another topic: ‘Family’. Can you tell me something about your family?
+user: Sure! There are 4 people in my family, my parents, my brother and I, we love each other.
+assistant: Great to hear that you have a loving family! Just a small correction, instead of saying "my brother and I", it would be better to say "my brother and me" since "me" is the object of the verb "love". So the corrected sentence would be:
+"Sure! There are 4 people in my family - my parents, my brother, and me. We love each other."
+That's wonderful to hear! What activities do you enjoy doing together as a family?
+user: We often go travelling as a family together! Also, when everyone’s at home, we often cook together as well!
+assistant: That's great to hear! Spending quality time together as a family is very important. Let’s switch to another topic: ’Sports’ Do you enjoy doing sports?
+
+Now start your lesson!
+`;
 
 // Set IDs for each 
 let MAXID = 100000;
@@ -181,14 +197,17 @@ class Model1{
 // Model 1 is just summarise things and put them into the prompt tgt
 // Prompt: each summarised memories stacking together
 class Model1{
-    constructor(histPath, batchSize=10, buffer=10){
+    constructor(histPath, sumPath,batchSize=10, buffer=10){
         this.histPath = histPath;
         this.listory = require(this.histPath);
-        this.counter = 0;
-        this.index = 0;
         this.batchSize = batchSize;
         this.buffer = buffer;
-        this.summaries = [];
+
+        this.sumPath = sumPath;
+        this.summaries = require(this.sumPath).map(s => s.summary);
+        this.counter = this.summaries.length;
+        this.index = this.counter * this.batchSize;
+        
         this.lockKey = crypto.randomBytes(16).toString("hex");
         lock.acquire(this.lockKey, (done) => {
             if (this.listory.length >= (this.index + this.batchSize + this.buffer)){
@@ -252,6 +271,9 @@ class Model1{
                 this.summaries.push(gpt.data.choices[0].text);
                 // console.log('pushing summaries', this.summaries)
                 this.counter += 1;
+                fs.writeFileSync(this.sumPath, JSON.stringify(this.summaries.map((s,i) => {
+                    return {count:i, summary:s};
+                })));
                 // Update the starting index of the history which haven't summerised
                 this.index = this.counter * this.batchSize;
 
@@ -311,20 +333,29 @@ The user and the assistant talked about`);
         }
         
     }
+
+    getSummary(all=false){
+        if (all) return this.summaries;
+        return {count:this.counter-1, summary:this.summaries[this.summaries.length - 1]};
+    }
 }
 
 
 
 // Prompt will be a constant amount, it'll be the hierachical summarisation of the past summaries.
 class Model2{
-    constructor(histPath, batchSize=10, buffer=10){
-        this.index = 0;
+    constructor(histPath, sumPath, batchSize=10, buffer=10){
         this.buffer = buffer;
         this.batchSize = batchSize;
         this.histPath = histPath;
         this.listory = require(this.histPath);
-        this.counter = 0;
-        this.currentSummary = "";
+
+        this.sumPath = sumPath;
+        this.summaries = require(this.sumPath).map(s => s.summary);
+        this.counter = this.summaries.length;
+        this.index = this.counter * this.batchSize;
+        this.currentSummary = this.summaries[this.counter-1];
+        
         this.lockKey = crypto.randomBytes(16).toString("hex");
         lock.acquire(this.lockKey, (done) => {
             if (this.listory.length >= (this.index + this.batchSize + this.buffer)){
@@ -372,7 +403,11 @@ class Model2{
     
     summariseHistory(cb){
         let advanceSummariser = () => {
+            this.summaries.push(this.currentSummary);
             this.counter += 1;
+            fs.writeFileSync(this.sumPath, JSON.stringify(this.summaries.map((s,i) => {
+                return {count: i, summary: s};
+            })));
             // Update the starting index of the history which haven't summerised
             this.index = this.counter * this.batchSize;
     
@@ -467,6 +502,11 @@ class Model2{
             return [builtInText, {role: 'system', content: `You and the user have previously talked about ${this.currentSummary}`}].concat(restHist);
         }
     }
+
+    getSummary(all=false){
+        if (all) return this.summaries;
+        return {count:this.counter-1, summary:this.currentSummary};
+    }
 }
 
 
@@ -504,11 +544,16 @@ class Playground{
         return dialogue;
         
     }
+
+    getSummary(all=false){
+        if (all) return [];
+        return {count:-1, summary:""};
+    }
 }
 
-let conversation1 = new Model1("./history1.json", batchSize, bufferSize);
+let conversation1 = new Model1("./history1.json", "./sum1.json", batchSize, bufferSize);
 
-let conversation2 = new Model2("./history2.json", batchSize, bufferSize);
+let conversation2 = new Model2("./history2.json", "./sum2.json", batchSize, bufferSize);
 
 
 
@@ -548,6 +593,7 @@ app.post("/send", (req, res) => {
         res.send({
             text: gpt.data.choices[0].message.content,
             cutoff: croppedPrompt.cutoff,
+            sum: conversation[req.query.model].getSummary(),
         });
     }).catch(err => {
         console.log(`err msg ${err}`);
@@ -563,7 +609,10 @@ app.post('*', (req, res) => {
 // Send past conversation to log in front-end from server side
 app.get('/history', (req, res) =>{
     if(Object.keys(conversation).includes(req.query.model)){
-        res.send(conversation[req.query.model].listory);
+        res.send({
+            hist: conversation[req.query.model].listory,
+            sum: conversation[req.query.model].getSummary(true),
+        });
     } else {
         res.status(404).end();
     }

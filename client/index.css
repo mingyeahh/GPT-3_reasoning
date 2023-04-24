@@ -3,7 +3,7 @@
     margin-top: 5vh;
 }
 
-.conversation{
+.scrollable {
     border-radius: 5px;
     height: 60vh;
     overflow: scroll;

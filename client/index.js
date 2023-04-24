@@ -3,7 +3,13 @@ const frm2 = document.getElementById("HumanForm2");
 // const frm3 = document.getElementById("HumanForm3");
 const frm4 = document.getElementById("HumanForm4");
 
+const sum1 = document.getElementById("model1-sum");
+const sum2 = document.getElementById("model2-sum");
+let sum_panes = {1: sum1, 2: sum2, 4: null};
+let sum_counters = {1: -1, 2: -1, 4: -1};
+
 const tc = document.getElementById("turn-counter");
+const tcb = document.getElementById("turn-btn");
 let activeModel = 1;
 
 const models = [1,2,4];
@@ -16,6 +22,8 @@ for (let p of pills) {
         let modelNumber = e.target.getAttribute('data-modelNo');
         activeModel = modelNumber;
         tc.innerText = model_counters[modelNumber];
+        tcb.classList.remove('btn-outline-danger');
+        tcb.classList.add('btn-outline-primary');
     })
 }
 
@@ -55,7 +63,7 @@ const formHandler = (e) => {
             throw new Error();
         }
     }).then(data => {
-        // console.log(data);
+        console.log(data);
         let elem = document.getElementById(`conv-model${modelNumber}`);
 
         elem.innerHTML += `<span class="title">Human:</span> <span id="${modelNumber}-${model_counters[modelNumber]}" style="color: darkblue">${hinp.replace(/(?:\r\n|\r|\n)/g, '<br>')}</span>
@@ -76,10 +84,26 @@ const formHandler = (e) => {
             cutoffPoint.innerHTML = newText.replace(/(?:\r\n|\r|\n)/g, '<br>');
         }
 
+        if (data.sum.count > sum_counters[modelNumber]) {
+            sum_counters[modelNumber]++;
+            let newP = `<p class="summary"><span class="title">Batch ${sum_counters[modelNumber]+1} Summary</span><br>${data.sum.summary}</p>`;
+            sum_panes[modelNumber].innerHTML += newP;
+        };
+
         elem.innerHTML += `<span class="title">AI:</span> <span id="${modelNumber}-${model_counters[modelNumber]}">${data.text.replace(/(?:\r\n|\r|\n)/g, '<br>')}</span>
         <br>`;
         model_counters[modelNumber]++;
-        if (modelNumber == activeModel) tc.innerText = model_counters[modelNumber];
+        if (modelNumber == activeModel) {
+            tc.innerText = model_counters[modelNumber];
+            if (data.cutoff == [-1,-1]) {
+                tcb.classList.remove('btn-outline-danger');
+                tcb.classList.add('btn-outline-primary');
+
+            } else {
+                tcb.classList.remove('btn-outline-primary');
+                tcb.classList.add('btn-outline-danger')
+            }
+        }
         elem.scrollTop = elem.scrollHeight;
     }).catch(console.error);
 };
@@ -91,6 +115,7 @@ frm2.addEventListener("submit", formHandler);
 frm4.addEventListener("submit", formHandler);
 
 // Get history data to show on the front end
+// This is for when the front end load
 window.addEventListener("load", (e) => {
     e.preventDefault();
 
@@ -105,9 +130,11 @@ window.addEventListener("load", (e) => {
                 throw new Error();
             }
         }).then(data => {
+            let history = data.hist;
+            let summaries = data.sum;
             // console.log(data);
             // document.getElementById('conv-model1').innerHTML = '';
-            data.forEach((i) =>{
+            history.forEach((i) =>{
                 let newLine = `<span class="title">${i.sender ==="user" ? "Human" : "AI"}:</span> <span id="${m}-${model_counters[m]}">${i.msg.replace(/(?:\r\n|\r|\n)/g, '<br>')}</span>
                             <br>`;
                 model_counters[m]++;
@@ -116,6 +143,13 @@ window.addEventListener("load", (e) => {
                 elem.scrollTop = elem.scrollHeight;
                 // console.log(model_counters[m])
             });
+
+            summaries.forEach((i) => {
+                sum_counters[m]++;
+                let newP = `<p class="summary"><span class="title">Batch ${sum_counters[m]+1} Summary</span><br>${i}</p>`;
+                sum_panes[m].innerHTML += newP;
+            });
+
             if (m == activeModel) tc.innerText = model_counters[m];
         }).catch(console.error);
     })
