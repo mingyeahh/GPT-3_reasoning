@@ -95,10 +95,9 @@ const formHandler = (e) => {
         model_counters[modelNumber]++;
         if (modelNumber == activeModel) {
             tc.innerText = model_counters[modelNumber];
-            if (data.cutoff == [-1,-1]) {
+            if (data.cutoff[0] == -1 && data.cutoff[1] == -1) {
                 tcb.classList.remove('btn-outline-danger');
                 tcb.classList.add('btn-outline-primary');
-
             } else {
                 tcb.classList.remove('btn-outline-primary');
                 tcb.classList.add('btn-outline-danger')

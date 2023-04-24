@@ -15,7 +15,7 @@ let lock = new AsyncLock();
 let temp_summeriser = 0;
 let temp_chatter = 0;
 const isDialogue = true;
-const batchSize = 10;
+const batchSize = 20;
 const bufferSize = 10;
 /*
  * TODO:
