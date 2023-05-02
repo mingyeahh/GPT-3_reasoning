@@ -12,10 +12,11 @@ const {get_encoding} = require('@dqbd/tiktoken')
 let lock = new AsyncLock();
 
 // Parameters
-let temp_summeriser = 0;
-let temp_chatter = 0;
+let temp_summeriser = 0.5;
+let temp_chatter = 0.4;
+// This is for testing the case where we just ask the model to list things, in which case we only summarise what the model says...
 const isDialogue = true;
-const batchSize = 20;
+const batchSize = 10;
 const bufferSize = 10;
 /*
  * TODO:
@@ -27,7 +28,7 @@ const bufferSize = 10;
  * 6. Model-3(optional)
 */
 
-const conversationStart = `You are an encouraging language teacher, your goal is to help users practice their oral English skills. To achieve this, you must automatically introduce new and common topics to practice with the user as soon as the previous one is finished. You should aim to cover at least 30 different daily topics with the user one by one. Whenever the user makes a grammar mistake, it's crucial that you point it out and help them correct it immediately. Additionally, you should always recommend new phrases for the user to use and improve their language proficiency. Here are some examples:
+const conversationStart = `You are an encouraging language teacher, your goal is to help users practice their oral English skills. To achieve this, you must automatically introduce new and common topics to practice with the user as soon as the previous one is finished. New topic should be topics that is not on the topic list. You should aim to cover at least 30 different daily topics with the user one by one. Whenever the user makes a grammar mistake, it's crucial that you point it out and help them correct it immediately. Additionally, you should always recommend new phrases for the user to use and improve their language proficiency. Here are some examples:
 
 assistant: Let’s talk about ‘Travel’. Please talked about a place you have been to recently. 
 user: Sure! I go to Cambridge last week, it was nice and pretty. I went punt with my cousins. There are a lot of tourists there! I enjoy my time there in Cambridge very much! Every thing are beautiful! 
@@ -112,90 +113,11 @@ const openai2 = new OpenAIApi(configuration2);
 // buffer => the size of conversation that I define
 // batchSize => the size of one batch of conversation that we define for summerisation
 // histPath => the path to log all the past conversation in a json file
-// listory => a verb i made means the list of history lmao :D
+// listory => a noun I made means the list of history lmao :D!
 // Concatenating summaries for different batches into the prompt
 
-// Original Model 1 -> prompt is the stacked summaries
-/*
-class Model1{
-    constructor(histPath, batchSize=10, buffer=10){
-        this.histPath = histPath;
-        this.listory = require(this.histPath);
-        this.counter = 0;
-        this.index = 0;
-        this.batchSize = batchSize;
-        this.buffer = buffer;
-        this.summaries = [];
-        if (this.listory.length >= (this.index + this.batchSize + this.buffer)){
-            // automatically summarise recursively
-            this.summariseHistory();
-        }
-    }
 
-    push(sender, msg, time) {
-        this.listory.push({
-            sender: sender,
-            msg: msg,
-            time: time,
-        });
-        if (this.listory.length >= (this.index + this.batchSize + this.buffer)){
-            // automatically summarise recursively
-            this.summariseHistory();
-        }
-        fs.writeFileSync(this.histPath, JSON.stringify(this.listory));
-    }
-
-    historyToText(start=0, end=-1) {
-        if (end < 0) {end = this.listory.length}
-        let buffer = "";
-        for (let i = start; i<end; i++){
-            let h = this.listory[i];
-            buffer = buffer.concat(`${h.sender}: ${h.msg}\n`);
-        }
-        return buffer;
-    }
-
-    summariseHistory(){
-        this.isSummarising = true;
-        openai2.createCompletion({
-            model: "text-davinci-002",
-            prompt:`${this.historyToText(this.index, (this.index + this.batchSize))}\n\nTl;dr`,
-            temperature: 0.7,
-            max_tokens: 256,
-            top_p: 1,
-            frequency_penalty: 0,
-            presence_penalty: 0,
-        }).then(gpt => {
-            this.summaries.push(gpt.data.choices[0].text);
-    
-            this.counter += 1;
-            // Update the starting index of the history which haven't summerised
-            this.index = this.counter * this.batchSize;
-    
-            console.log('summary for the text' + this.summaries[this.summaries.length-1]);
-            console.log('current index is: ' + this.index);
-
-            if (this.listory.length >= (this.index + this.batchSize + this.buffer)){
-                // automatically summarise recursively
-                this.summariseHistory();
-            } else {
-                this.isSummarising = false;
-            }
-        });
-    }
-
-    conversationPrompt(){
-        let builtInText = "We'll be learning about NLP, we've already discussed:";
-        let restHist = this.historyToText(this.index);
-        console.log(this.summaries);
-        return `${builtInText}\n${this.summaries.join(' ')}\n${restHist}AI:`;
-        
-    }
-}
-// */
-
-// Model 1 is just summarise things and put them into the prompt tgt
-// Prompt: each summarised memories stacking together
+// Model 1 is the chunk summariser which summarise things and stack the summaries into the prompt tgt
 class Model1{
     constructor(histPath, sumPath,batchSize=10, buffer=10){
         this.histPath = histPath;
@@ -302,7 +224,8 @@ ${resp[1]['summary']}
 Dialogue 3:
 ${this.historyToText(this.index, (this.index + this.batchSize), true)}
 
-Based on the previous summary examples' techniques, summarise Dialogue 3 in detail for at least 30 words, then give a list of topics what the user and the assistant talked about. Example: Topics discussed include: Travel, Food, Books.
+Based on the previous summary examples' techniques, summarise Dialogue 3 in detail for at least 30 words, but no more than 60 words, then give a list of topics of what the user and the assistant talked about. Example: Topics discussed include: Travel, Food, Books.
+
 Summary 3:
 The user and the assistant talked about`);
             });
@@ -354,15 +277,18 @@ class Model2{
         this.summaries = require(this.sumPath).map(s => s.summary);
         this.counter = this.summaries.length;
         this.index = this.counter * this.batchSize;
-        this.currentSummary = this.summaries[this.counter-1];
+        this.currentSummary = this.summaries.length > 0 ? this.summaries[this.counter-1] : "";
         
         this.lockKey = crypto.randomBytes(16).toString("hex");
         lock.acquire(this.lockKey, (done) => {
             if (this.listory.length >= (this.index + this.batchSize + this.buffer)){
                 // automatically summarise recursively
+                console.log("summarising")
                 this.summariseHistory(done);
             } else {done();}
         }, ()=>{});
+
+        console.log(this.counter);
     }
     
     // Set the starting and ending index of the conversation batch we need to use
@@ -449,8 +375,8 @@ class Model2{
                         model: "gpt-3.5-turbo",
                         messages: [{role: 'user', content: (
                             (isDialogue) ?
-                            `The user and the assistant previously talked about ${B} They also talked about${A}\nPlease summarise the given information above in detail but less than 200 words.Then give a give a list of topic they've talked about. Example: Topics discussed include: Travel, Food, Books.\n` :
-                            `${B}\n${A}\nPlease summarise the information given above in detail.`
+                            `The user and the assistant previously talked about ${B} They also talked about${A}\nPlease summarise the given information above in detail but less than 200 words.Then give a list of topic they've talked about. Example: Topics discussed include: Travel, Food, Books.\n` :
+                            `${B}\n${A}\nPlease summarise the information given above in 150 words.`
                         )}],
                         temperature: temp_summeriser,
                         max_tokens: 300,
@@ -498,8 +424,8 @@ class Model2{
             // console.log("Current summary is empty");
             return [builtInText].concat(restHist);
         } else {
-            console.log([builtInText, {role: 'system', content: `You and the user have previously talked about ${this.currentSummary}`}].concat(restHist));
-            return [builtInText, {role: 'system', content: `You and the user have previously talked about ${this.currentSummary}`}].concat(restHist);
+            console.log([builtInText, {role: 'system', content: this.currentSummary}].concat(restHist));
+            return [builtInText, {role: 'system', content: this.currentSummary}].concat(restHist);
         }
     }
 
@@ -562,7 +488,7 @@ let conversation4 = new Playground("./history4.json");
 let conversation = {
     1: conversation1,
     2: conversation2,
-    // 3: conversation3,
+    // 3: conversation3, future work
     4: conversation4,
 };
 
