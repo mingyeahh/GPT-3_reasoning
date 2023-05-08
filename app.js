@@ -14,19 +14,15 @@ let lock = new AsyncLock();
 // Parameters
 let temp_summeriser = 0.5;
 let temp_chatter = 0.8;
-// This is for testing the case where we just ask the model to list things, in which case we only summarise what the model says...
+// This is for testing the case where we just ask the model to list things, in which case we only summarise what the model says.
 const isDialogue = true;
 const batchSize = 10;
 const bufferSize = 10;
-/*
- * TODO:
- - 1. Manually set the shorter memory limitation for all of the models into the same limit by token  -> for efficient evaluation purposes
- - 2. Setting the system prompt, Prepare a lot of different scripts
- - 3. Do both of the experiments
- - 4. Set standards for the evaluations 
- - 5. Experiment and log results
- * 6. Model-3(optional)
-*/
+
+// Set IDs for each 
+let MAXID = 100000;
+// artificial memory limitation for the model
+let limit = 1800;
 
 const conversationStart = `You are an encouraging language teacher, your goal is to help users practice their oral English skills. To achieve this, you must automatically introduce new and common topics to practice with the user as soon as the previous one is finished. New topic should be topics that is not on the topic list. You should aim to cover at least 30 different daily topics with the user one by one. Whenever the user makes a grammar mistake, it's crucial that you point it out and help them correct it immediately. Additionally, you should always recommend new phrases for the user to use and improve their language proficiency. Here are some examples:
 
@@ -46,10 +42,7 @@ assistant: That's great to hear! Spending quality time together as a family is v
 Now start your lesson!
 `;
 
-// Set IDs for each 
-let MAXID = 100000;
-// artificial memory limitation for the model
-let limit = 1800;
+
 
 const p = spawn('python3',["PromptSelecter.py"]);
 p.stdin.setEncoding('utf-8');
@@ -437,7 +430,7 @@ class Model2{
 }
 
 
-
+// This is the ChatGPT baseline model.
 class Playground{
     constructor(histPath){
         this.histPath = histPath;
@@ -481,8 +474,6 @@ class Playground{
 let conversation1 = new Model1("./history1.json", "./sum1.json", batchSize, bufferSize);
 
 let conversation2 = new Model2("./history2.json", "./sum2.json", batchSize, bufferSize);
-
-
 
 let conversation4 = new Playground("./history4.json");
 
