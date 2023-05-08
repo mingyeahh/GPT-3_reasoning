@@ -13,7 +13,7 @@ let lock = new AsyncLock();
 
 // Parameters
 let temp_summeriser = 0.5;
-let temp_chatter = 0.4;
+let temp_chatter = 0.8;
 // This is for testing the case where we just ask the model to list things, in which case we only summarise what the model says...
 const isDialogue = true;
 const batchSize = 10;
@@ -48,13 +48,14 @@ Now start your lesson!
 
 // Set IDs for each 
 let MAXID = 100000;
+// artificial memory limitation for the model
 let limit = 1800;
 
 const p = spawn('python3',["PromptSelecter.py"]);
 p.stdin.setEncoding('utf-8');
 const p_stdout = p.stdout.pipe(StreamSplitter("\n"));
 
-// debugging
+// debugging :/
 // p_stdout.on('token', data => console.log(`Python says: ${data} \n`));
 // p.stderr.on('data', data => console.log(`Python stderr says: ${data}`));
 
@@ -113,7 +114,7 @@ const openai2 = new OpenAIApi(configuration2);
 // buffer => the size of conversation that I define
 // batchSize => the size of one batch of conversation that we define for summerisation
 // histPath => the path to log all the past conversation in a json file
-// listory => a noun I made means the list of history lmao :D!
+// listory => a noun I made means the list of history lmao :D! Yay!
 // Concatenating summaries for different batches into the prompt
 
 
